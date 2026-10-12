@@ -7,11 +7,22 @@ import { pathToFileURL } from 'node:url';
 
 const HOME = mkdtempSync(join(tmpdir(), 'spatial-artifacts-preview-'));
 process.env['SPATIAL_ARTIFACTS_DIR'] = HOME;
-const { preview } = await import('../server/preview.ts');
+const { preview } = await import('../plugins/spatial-artifacts/server/preview.ts');
 
 const FIX = join(import.meta.dirname, 'fixtures');
 const { assemble } = await import(
-    pathToFileURL(join(import.meta.dirname, '..', 'skills', 'spatial-3d-design', 'scripts', 'new-scene.mjs')).href
+    pathToFileURL(
+        join(
+            import.meta.dirname,
+            '..',
+            'plugins',
+            'spatial-artifacts',
+            'skills',
+            'spatial-3d-design',
+            'scripts',
+            'new-scene.mjs',
+        ),
+    ).href
 );
 
 after(() => {

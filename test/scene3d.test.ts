@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-const SKILL = join(import.meta.dirname, '..', 'skills', 'spatial-3d-design');
+const SKILL = join(import.meta.dirname, '..', 'plugins', 'spatial-artifacts', 'skills', 'spatial-3d-design');
 const core = await import(pathToFileURL(join(SKILL, 'template', 'scene-core.mjs')).href);
 
 const doc = (entities: unknown[], extra: Record<string, unknown> = {}) =>

@@ -140,5 +140,5 @@
         /* Watch Options */
         // assumeChangesOnlyAffectDirectDependencies
     },
-    "include": ["server", "scripts", "test"]
+    "include": ["server", "scripts"]
 }

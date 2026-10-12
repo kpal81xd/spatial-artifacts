@@ -8,9 +8,9 @@ import { after, before, describe, test } from 'node:test';
 
 const HOME = mkdtempSync(join(tmpdir(), 'da-caps-'));
 process.env['SPATIAL_ARTIFACTS_DIR'] = HOME;
-const { startDaemon } = await import('../server/daemon.ts');
-const { wrapHtml } = await import('../server/wrap.ts');
-const { configured } = await import('../server/mcphost.ts');
+const { startDaemon } = await import('../plugins/spatial-artifacts/server/daemon.ts');
+const { wrapHtml } = await import('../plugins/spatial-artifacts/server/wrap.ts');
+const { configured } = await import('../plugins/spatial-artifacts/server/mcphost.ts');
 
 type Res = { status: number; body: any; headers: Record<string, unknown>; raw: Buffer };
 const http = (

@@ -8,10 +8,10 @@ import { after, before, describe, test } from 'node:test';
 
 const HOME = mkdtempSync(join(tmpdir(), 'da-test-'));
 process.env['SPATIAL_ARTIFACTS_DIR'] = HOME;
-const { startDaemon } = await import('../server/daemon.ts');
-const { findTitle, unwrap, wrapHtml } = await import('../server/wrap.ts');
-const { claudeStatus } = await import('../server/store.ts');
-const { CLAUDE_WORK_MS } = await import('../server/constants.ts');
+const { startDaemon } = await import('../plugins/spatial-artifacts/server/daemon.ts');
+const { findTitle, unwrap, wrapHtml } = await import('../plugins/spatial-artifacts/server/wrap.ts');
+const { claudeStatus } = await import('../plugins/spatial-artifacts/server/store.ts');
+const { CLAUDE_WORK_MS } = await import('../plugins/spatial-artifacts/server/constants.ts');
 
 type Res = { status: number; body: any; headers: Record<string, unknown> };
 const http = (
@@ -605,7 +605,7 @@ describe('daemon', () => {
 });
 
 test('comment monitors run an existing script when an existing skill loads', () => {
-    const root = join(import.meta.dirname, '..');
+    const root = join(import.meta.dirname, '..', 'plugins', 'spatial-artifacts');
     const monitors = JSON.parse(readFileSync(join(root, 'monitors', 'monitors.json'), 'utf8'));
     const skills = ['spatial-design', 'spatial-3d-design'];
     assert.deepEqual(
@@ -638,7 +638,7 @@ test('claude status: waiting once the work window passes, none once resolved', (
 
 // claude code sets only CLAUDE_PLUGIN_ROOT, and codex sets it too; a bare $PLUGIN_ROOT breaks the hook in claude code
 test('comment hook runs an existing script from the plugin root both CLIs set', () => {
-    const root = join(import.meta.dirname, '..');
+    const root = join(import.meta.dirname, '..', 'plugins', 'spatial-artifacts');
     const [h] = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8')).hooks.UserPromptSubmit[0].hooks;
     const script = h.command.match(/"\$\{CLAUDE_PLUGIN_ROOT\}\/(\S+?)"/)[1];
     assert.ok(existsSync(join(root, script)));
@@ -652,10 +652,14 @@ describe('mcp over stdio', () => {
         SPATIAL_ARTIFACTS_PORT: String(port),
         SPATIAL_ARTIFACTS_AUTO_OPEN: '0',
     };
-    const proc = spawn(process.execPath, [join(import.meta.dirname, '..', 'server', 'mcp.ts')], {
-        env,
-        stdio: ['pipe', 'pipe', 'inherit'],
-    });
+    const proc = spawn(
+        process.execPath,
+        [join(import.meta.dirname, '..', 'plugins', 'spatial-artifacts', 'server', 'mcp.ts')],
+        {
+            env,
+            stdio: ['pipe', 'pipe', 'inherit'],
+        },
+    );
     let buf = '';
     let n = 0;
     const waiting = new Map<number, (m: any) => void>();
@@ -702,10 +706,14 @@ describe('mcp over stdio', () => {
     test('a later session republishing a file updates the artifact it went to, unless it changed since', async () => {
         // a second mcp server process: what a resumed or restarted claude session starts
         const later = async () => {
-            const p = spawn(process.execPath, [join(import.meta.dirname, '..', 'server', 'mcp.ts')], {
-                env,
-                stdio: ['pipe', 'pipe', 'inherit'],
-            });
+            const p = spawn(
+                process.execPath,
+                [join(import.meta.dirname, '..', 'plugins', 'spatial-artifacts', 'server', 'mcp.ts')],
+                {
+                    env,
+                    stdio: ['pipe', 'pipe', 'inherit'],
+                },
+            );
             let b = '';
             let k = 0;
             const w = new Map<number, (m: any) => void>();
