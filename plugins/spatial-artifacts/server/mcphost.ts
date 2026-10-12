@@ -1,10 +1,9 @@
-// the mcp capability's local half: the viewer's own MCP servers, as Claude Code configures them for the artifact's project
+// the mcp capability's local half: the viewer's own MCP servers, from the artifact project's .mcp.json or the plugin's own mcp.json
 // (`host:<name>` in a page's manifest). the daemon runs each one itself, over stdio or streamable http, the first time a page
 // calls it, and stops it after a quiet spell. claude.ai connectors have no local counterpart
 import { type ChildProcessByStdio, spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
 import { HOME } from './constants.ts';
@@ -59,7 +58,7 @@ const expand = (v: unknown): any =>
             ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, expand(x)]))
             : v;
 
-/** the servers configured for `project`, by page name; later sources win: user, project .mcp.json, local, then the plugin's own file */
+/** the servers configured for `project`, by page name; later sources win: project .mcp.json, then the plugin's own file */
 export const configured = (project: string): Map<string, ServerConfig> => {
     const out = new Map<string, ServerConfig>();
     const add = (o: unknown) => {
@@ -72,10 +71,7 @@ export const configured = (project: string): Map<string, ServerConfig> => {
             }
         }
     };
-    const user = readJson(join(homedir(), '.claude.json'));
-    add(user?.mcpServers);
     add(readJson(join(project, '.mcp.json'))?.mcpServers);
-    add(user?.projects?.[resolve(project)]?.mcpServers);
     add(readJson(join(HOME, 'mcp.json'))?.mcpServers);
     return out;
 };

@@ -924,9 +924,6 @@ const viewer = async (id) => {
         if (c.files) {
             out.push('files');
         }
-        if (c.sample) {
-            out.push('sample');
-        }
         for (const x of Array.isArray(c.mcp?.servers) ? c.mcp.servers : []) {
             if (typeof x?.server === 'string') {
                 out.push(`mcp:${x.server}`);
@@ -941,12 +938,6 @@ const viewer = async (id) => {
         }
         if (name === 'files') {
             return ['Read project files', `Read files in ${c.files?.project || 'the project'} (never .git).`];
-        }
-        if (name === 'sample') {
-            return [
-                'Ask Claude',
-                'Send prompts to Claude from the page. Each request is billed to your Anthropic API key.',
-            ];
         }
         const srv = name.slice(4);
         const tools = (c.mcp?.servers ?? []).find((x) => x?.server === srv)?.tools ?? [];

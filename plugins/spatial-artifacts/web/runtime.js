@@ -659,7 +659,6 @@
             capsCfg().then((c) => [
                 ...(c.comments && c.comments.composer_only !== true ? ['comments'] : []),
                 ...(c.files ? ['files'] : []),
-                ...(c.sample ? ['sample'] : []),
                 ...(Array.isArray(c.mcp?.servers)
                     ? c.mcp.servers.filter((x) => typeof x?.server === 'string').map((x) => `mcp:${x.server}`)
                     : []),
@@ -707,19 +706,7 @@
         };
 
         // permissions are built in: a declared capability that needs no consent is usable at once (downloads confirms each save)
-        const ALL_CAPS = [
-            'artifact',
-            'assets',
-            'comments',
-            'db',
-            'downloads',
-            'files',
-            'mcp',
-            'room',
-            'sample',
-            'self',
-            'user',
-        ];
+        const ALL_CAPS = ['artifact', 'assets', 'comments', 'db', 'downloads', 'files', 'mcp', 'room', 'self', 'user'];
         const one = (n, g) => (g.has(n) ? 'granted' : deniedNow.has(n) ? 'denied' : framed ? 'prompt' : 'unavailable');
         const stateOf = async (name) => {
             const n = String(name);
@@ -806,9 +793,9 @@
             caps.includes(name) ||
             ((name === 'artifact' || name === 'self') && (caps.includes('artifact') || caps.includes('self')));
 
-        // comments, files, mcp, room and sample live in caps.js, loaded when first used; comments needs comment mode's
+        // comments, files, mcp and room live in caps.js, loaded when first used; comments needs comment mode's
         // internals, so its namespace is built further down and reached through capComments
-        const LAZY = ['files', 'mcp', 'room', 'sample'];
+        const LAZY = ['files', 'mcp', 'room'];
         let capsMod = null;
         const lazy = (name) =>
             (capsMod ??= import('/_frame/caps.js').then((m) =>

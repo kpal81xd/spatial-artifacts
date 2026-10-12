@@ -398,7 +398,7 @@ const checkCapabilities = (caps: any, contract: any) => {
                     }
                     if (!have.has(x.server)) {
                         bad(
-                            `capabilities.mcp.servers[${i}]: no MCP server is configured as ${x.server.slice(5)} for ${project}${have.size ? `; configured: ${[...have.keys()].join(', ')}` : ''} — servers come from ~/.claude.json, the project's .mcp.json, or ~/.spatial-artifacts/mcp.json`,
+                            `capabilities.mcp.servers[${i}]: no MCP server is configured as ${x.server.slice(5)} for ${project}${have.size ? `; configured: ${[...have.keys()].join(', ')}` : ''} — servers come from the project's .mcp.json or ~/.spatial-artifacts/mcp.json`,
                         );
                     }
                 }

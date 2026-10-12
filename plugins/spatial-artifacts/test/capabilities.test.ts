@@ -1,7 +1,7 @@
-// the capabilities that act as the viewer: grants, comments, files, room, sample and mcp, against a daemon in this process
+// the capabilities that act as the viewer: grants, comments, files, room and mcp, against a daemon in this process
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
-import { createServer, request } from 'node:http';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -10,7 +10,6 @@ const HOME = mkdtempSync(join(tmpdir(), 'da-caps-'));
 process.env['SPATIAL_ARTIFACTS_DIR'] = HOME;
 const { startDaemon } = await import('../server/daemon.ts');
 const { wrapHtml } = await import('../server/wrap.ts');
-const { parseJson } = await import('../server/sample.ts');
 const { configured } = await import('../server/mcphost.ts');
 
 type Res = { status: number; body: any; headers: Record<string, unknown>; raw: Buffer };
@@ -274,135 +273,6 @@ describe('capabilities', () => {
         assert.equal((await ev.wait((e) => e.event === 'to-claude')).data.id, r.body.id);
         assert.equal((await agent('POST', '/_agent/pending', { host: 777 })).body.length, 0);
         ev.close();
-    });
-
-    test('sample: streams from the Messages API, runs page tools between rounds, caches, needs consent', async () => {
-        const seen: any[] = [];
-        const api = createServer((req, res) => {
-            let b = '';
-            req.on('data', (c) => (b += c));
-            req.on('end', () => {
-                const body = JSON.parse(b);
-                seen.push({ body, headers: req.headers });
-                res.writeHead(200, { 'content-type': 'text/event-stream' });
-                const ev = (o: unknown) => res.write(`event: x\ndata: ${JSON.stringify(o)}\n\n`);
-                const last = body.messages.at(-1);
-                if (body.tools && !Array.isArray(last.content)) {
-                    ev({
-                        type: 'content_block_start',
-                        index: 0,
-                        content_block: { type: 'tool_use', id: 't1', name: 'getCount', input: {} },
-                    });
-                    ev({
-                        type: 'content_block_delta',
-                        index: 0,
-                        delta: { type: 'input_json_delta', partial_json: '{"x":1}' },
-                    });
-                    ev({ type: 'message_delta', delta: { stop_reason: 'tool_use' } });
-                } else {
-                    const reply = Array.isArray(last.content) ? `count is ${last.content[0].content}` : '[1, 2]';
-                    ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
-                    ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } });
-                    ev({ type: 'message_delta', delta: { stop_reason: 'end_turn' } });
-                }
-                res.end();
-            });
-        });
-        await new Promise<void>((r) => api.listen(0, '127.0.0.1', r));
-        process.env['ANTHROPIC_BASE_URL'] = `http://127.0.0.1:${(api.address() as any).port}`;
-        process.env['ANTHROPIC_API_KEY'] = 'test-key';
-        try {
-            const id = await publish({ sample: {} });
-            const ask = async (b: unknown) =>
-                (await page(id, 'POST', '/_frame/api/sample', b)).raw
-                    .toString()
-                    .trim()
-                    .split('\n')
-                    .map((l) => JSON.parse(l));
-            assert.equal((await ask({ input: 'hi' }))[0].code, 'not_granted');
-            await grant(id, 'sample');
-            const j = await ask({ verb: 'json', input: 'numbers' });
-            assert.deepEqual(j.at(-1), {
-                type: 'done',
-                value: [1, 2],
-                text: '[1, 2]',
-                truncated: false,
-                tier: 'default',
-            });
-            assert.equal(seen[0].body.model, 'claude-opus-5-5');
-            assert.equal(seen[0].body.fallbacks, 'default');
-            assert.equal(seen[0].headers['anthropic-beta'], 'server-side-fallback-2026-07-01');
-            assert.equal(seen[0].headers['x-api-key'], 'test-key');
-            await ask({ verb: 'json', input: 'numbers' });
-            assert.equal(seen.length, 1, 'the second identical call is a cache replay');
-            assert.equal((await ask({ input: [{ role: 'assistant', content: 'x' }] }))[0].code, 'invalid_request');
-            assert.equal(
-                (await ask({ input: 'x', tools: [{ name: 'a', description: 'b' }], cache: true }))[0].code,
-                'invalid_request',
-            );
-
-            // a tool round: the page gets the calls on the stream, posts results, and the answer continues
-            const out = await new Promise<any[]>((ok) => {
-                const lines: any[] = [];
-                let buf = '';
-                const data = Buffer.from(
-                    JSON.stringify({
-                        input: 'count?',
-                        tier: 'quick',
-                        tools: [{ name: 'getCount', description: 'the count' }],
-                    }),
-                );
-                const req = request(
-                    {
-                        host: '127.0.0.1',
-                        port: d.port,
-                        method: 'POST',
-                        path: '/_frame/api/sample',
-                        headers: {
-                            host: `${id}.localhost:${d.port}`,
-                            origin: `http://${id}.localhost:${d.port}`,
-                            'content-type': 'application/json',
-                        },
-                    },
-                    (res) => {
-                        res.on('data', (c: Buffer) => {
-                            buf += c;
-                            for (let i; (i = buf.indexOf('\n')) >= 0; buf = buf.slice(i + 1)) {
-                                const ev = JSON.parse(buf.slice(0, i));
-                                lines.push(ev);
-                                if (ev.type === 'tools') {
-                                    page(id, 'POST', '/_frame/api/sample/results', {
-                                        callId: ev.callId,
-                                        results: [{ id: ev.calls[0].id, content: '42' }],
-                                    });
-                                }
-                            }
-                        });
-                        res.on('end', () => ok(lines));
-                    },
-                );
-                req.end(data);
-            });
-            assert.deepEqual(out.find((e) => e.type === 'tools').calls, [
-                { id: 't1', name: 'getCount', input: { x: 1 } },
-            ]);
-            assert.equal(out.at(-1).text, 'count is 42');
-            assert.equal(out.at(-1).tier, 'quick');
-            assert.equal(seen.at(-1).body.model, 'claude-haiku-4-5');
-            assert.equal(seen.at(-1).body.fallbacks, undefined);
-            assert.equal(seen.at(-1).body.tools[0].eager_input_streaming, true);
-            assert.equal(seen.at(-1).body.messages.at(-1).content[0].tool_use_id, 't1');
-        } finally {
-            delete process.env['ANTHROPIC_API_KEY'];
-            delete process.env['ANTHROPIC_BASE_URL'];
-            api.close();
-        }
-    });
-
-    test('sample: the reply is read tolerantly as JSON', () => {
-        assert.deepEqual(parseJson('Here you go:\n```json\n{"a":1}\n```'), { ok: true, value: { a: 1 } });
-        assert.deepEqual(parseJson('Sure. [1,2] Done.'), { ok: true, value: [1, 2] });
-        assert.deepEqual(parseJson('no json'), { ok: false });
     });
 
     test('mcp: host servers from the local config, consent per server, writes only with a one-time viewer approval', async () => {
