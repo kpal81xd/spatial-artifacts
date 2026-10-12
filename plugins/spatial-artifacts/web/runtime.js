@@ -659,9 +659,6 @@
             capsCfg().then((c) => [
                 ...(c.comments && c.comments.composer_only !== true ? ['comments'] : []),
                 ...(c.files ? ['files'] : []),
-                ...(Array.isArray(c.mcp?.servers)
-                    ? c.mcp.servers.filter((x) => typeof x?.server === 'string').map((x) => `mcp:${x.server}`)
-                    : []),
             ]);
         let consentSeq = 0;
         const consents = new Map();
@@ -706,36 +703,19 @@
         };
 
         // permissions are built in: a declared capability that needs no consent is usable at once (downloads confirms each save)
-        const ALL_CAPS = ['artifact', 'assets', 'comments', 'db', 'downloads', 'files', 'mcp', 'room', 'self', 'user'];
+        const ALL_CAPS = ['artifact', 'assets', 'comments', 'db', 'downloads', 'files', 'room', 'self', 'user'];
         const one = (n, g) => (g.has(n) ? 'granted' : deniedNow.has(n) ? 'denied' : framed ? 'prompt' : 'unavailable');
         const stateOf = async (name) => {
             const n = String(name);
             const ask = await consentNames();
             const g = await loadGrants();
-            if (n === 'mcp' || n.startsWith('mcp:')) {
-                const servers = ask.filter((x) => x.startsWith('mcp:'));
-                const want = n === 'mcp' ? servers : servers.filter((x) => x === n);
-                if (!declared('mcp') || !want.length) {
-                    return 'unavailable';
-                }
-                const st = want.map((x) => one(x, g));
-                return st.every((x) => x === 'granted')
-                    ? 'granted'
-                    : st.includes('prompt')
-                      ? 'prompt'
-                      : st.includes('denied')
-                        ? 'denied'
-                        : 'unavailable';
-            }
             if (!ALL_CAPS.includes(n) || !declared(n)) {
                 return 'unavailable';
             }
             return ask.includes(n) ? one(n, g) : 'granted';
         };
         const stateMap = async (names) => {
-            const list = names
-                ? names.map(String)
-                : [...ALL_CAPS.filter(declared), ...(await consentNames()).filter((x) => x.startsWith('mcp:'))];
+            const list = names ? names.map(String) : ALL_CAPS.filter(declared);
             const entries = await Promise.all(list.map(async (n) => [n, await stateOf(n)]));
             return Object.fromEntries(names ? entries : entries.filter(([, v]) => v !== 'unavailable'));
         };
@@ -749,15 +729,7 @@
                 (async () => {
                     const list = Array.isArray(names) ? names.map(String) : undefined;
                     const before = await stateMap(list);
-                    const servers = (await consentNames()).filter((x) => x.startsWith('mcp:'));
-                    const g = await loadGrants();
-                    const ask = [
-                        ...new Set(
-                            Object.keys(before)
-                                .filter((n) => before[n] === 'prompt')
-                                .flatMap((n) => (n === 'mcp' ? servers.filter((x) => one(x, g) === 'prompt') : [n])),
-                        ),
-                    ];
+                    const ask = Object.keys(before).filter((n) => before[n] === 'prompt');
                     if (ask.length) {
                         await askConsent(ask);
                     }
@@ -793,9 +765,9 @@
             caps.includes(name) ||
             ((name === 'artifact' || name === 'self') && (caps.includes('artifact') || caps.includes('self')));
 
-        // comments, files, mcp and room live in caps.js, loaded when first used; comments needs comment mode's
+        // comments, files and room live in caps.js, loaded when first used; comments needs comment mode's
         // internals, so its namespace is built further down and reached through capComments
-        const LAZY = ['files', 'mcp', 'room'];
+        const LAZY = ['files', 'room'];
         let capsMod = null;
         const lazy = (name) =>
             (capsMod ??= import('/_frame/caps.js').then((m) =>

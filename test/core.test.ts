@@ -956,38 +956,7 @@ describe('mcp over stdio', () => {
             out((await publishPage('Sample Page', { capabilities: { sample: {} } })).r),
             /unknown capability "sample"/,
         );
-        assert.match(
-            out(
-                (
-                    await publishPage('Mcp Page', {
-                        capabilities: {
-                            mcp: { servers: [{ server: 'Linear', tools: ['list_issues'] }], project: tmpdir() },
-                        },
-                    })
-                ).r,
-            ),
-            /claude\.ai connector, which the local viewer cannot reach/,
-        );
-        assert.match(
-            out(
-                (
-                    await publishPage('Mcp Page', {
-                        capabilities: { mcp: { servers: [{ server: 'host:nope', tools: ['x'] }], project: tmpdir() } },
-                    })
-                ).r,
-            ),
-            /no MCP server is configured as nope/,
-        );
-        assert.match(
-            out(
-                (
-                    await publishPage('Mcp Page', {
-                        capabilities: { mcp: { servers: [{ server: 'host:nope', tools: [] }], project: tmpdir() } },
-                    })
-                ).r,
-            ),
-            /never means all tools/,
-        );
+        assert.match(out((await publishPage('Mcp Page', { capabilities: { mcp: {} } })).r), /unknown capability "mcp"/);
         assert.match(
             out((await publishPage('Files Page', { capabilities: { files: { project: 'chan_123' } } })).r),
             /claude\.ai project ids do not apply locally/,

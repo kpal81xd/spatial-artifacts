@@ -84,21 +84,10 @@ export const CONTRACT_RE = /^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,5}
 export const PROFILE_ID_RE = /^u_[A-Za-z0-9_]{22}$/;
 export const CONTRACT_VERSION = '1.0.0';
 // the original's whole roster; `self` is the former name of `artifact`, and `permissions` is built in, never declared
-export const CAPABILITIES = [
-    'artifact',
-    'assets',
-    'comments',
-    'db',
-    'downloads',
-    'files',
-    'mcp',
-    'room',
-    'self',
-    'user',
-];
+export const CAPABILITIES = ['artifact', 'assets', 'comments', 'db', 'downloads', 'files', 'room', 'self', 'user'];
 
 // what the viewer allows a page to do as them, asked in the viewer and stored per artifact
-export const GRANT_RE = /^(comments|files|mcp:\S{1,200})$/;
+export const GRANT_RE = /^(comments|files)$/;
 
 export const PAGE_EXTS = ['.html', '.htm', '.md'];
 
