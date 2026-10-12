@@ -1,0 +1,21 @@
+<title>Quarterly notes</title>
+<style>
+:root { --bg: #faf9f5; --fg: #1d1c1a; --muted: #6b6960; --card: #ffffff; --line: #e4e1d6; --accent: #c2410c; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) { --bg: #1c1b19; --fg: #efece3; --muted: #a7a398; --card: #272623; --line: #3b3a36; --accent: #fb923c; }
+}
+:root[data-theme=dark] { --bg: #1c1b19; --fg: #efece3; --muted: #a7a398; --card: #272623; --line: #3b3a36; --accent: #fb923c; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 20px; }
+h1 { margin: 0 0 8px; font-size: 28px; }
+p { color: var(--muted); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+.card b { color: var(--accent); }
+</style>
+<main>
+    <h1>Quarterly notes</h1>
+    <p>A small page with light and dark tokens, used to check the preview renders cleanly.</p>
+    <div class="card"><b>Revenue</b> grew 12% over the quarter, led by the new plan.</div>
+    <div class="card"><b>Churn</b> held flat at 2.1%, within the target band.</div>
+    <div class="card"><b>Next</b>: ship the onboarding revamp and measure activation.</div>
+</main>

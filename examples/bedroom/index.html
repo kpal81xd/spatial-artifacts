@@ -1,0 +1,499 @@
+<title>Garden Bedroom</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+    :root {
+        color-scheme: light;
+        --page-bg: #f1f2ef;
+        --scene-bg: #c6d9e6;
+        --ink: #1d2320;
+        --muted: #59625d;
+        --panel: #f6f7f4e6;
+        --line: #c8cec8;
+        --accent: #2c6b5a;
+        --on-accent: #f4f7f5;
+        --sans: 'IBM Plex Sans', system-ui, sans-serif;
+        --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+        /* the editing toolbar is viewer chrome: it takes the viewer's comment orange in every theme, like the comment outlines */
+        --tool: #c96442;
+        --on-tool: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            color-scheme: dark;
+            --page-bg: #101312;
+            --scene-bg: #7d97ab;
+            --ink: #e3e8e4;
+            --muted: #98a29c;
+            --panel: #1d2220e6;
+            --line: #333b37;
+            --accent: #79c2a9;
+            --on-accent: #0f1412;
+        }
+    }
+    :root[data-theme="dark"] {
+        color-scheme: dark;
+        --page-bg: #101312;
+        --scene-bg: #7d97ab;
+        --ink: #e3e8e4;
+        --muted: #98a29c;
+        --panel: #1d2220e6;
+        --line: #333b37;
+        --accent: #79c2a9;
+        --on-accent: #0f1412;
+    }
+    body { margin: 0; padding-block: 20px; padding-inline: 16px; background: var(--page-bg); color: var(--ink); font: 15px/1.45 var(--sans); }
+    h1 { margin: 0 0 14px; font-size: 19px; font-weight: 600; text-wrap: balance; }
+    .scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+    .scene { display: flex; flex-direction: column; gap: 8px; }
+    .view { position: relative; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--scene-bg); }
+    .scenes:has(.scene + .scene) .view { aspect-ratio: 4 / 3; }
+    .scene-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+    /* stacked scenes on a phone leave vertical swipes to the page, so it still scrolls; full screen takes them all back */
+    @media (max-width: 700px) { .scenes:has(.scene + .scene) .scene-canvas { touch-action: pan-y; } }
+    :root[data-fullscreen] .scene[data-max] .scene-canvas { touch-action: none; }
+
+    /* the hud's text lets clicks through to the scene, so comments and orbits reach what is under it; it stops short of the corner button */
+    .hud { position: absolute; top: 12px; left: 12px; right: 58px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+    .hud > .tools { pointer-events: auto; }
+    h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+    .tools { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+    .tools[hidden] { display: none; }
+    .tools button { position: relative; display: grid; place-items: center; color: var(--ink); background: transparent; border: 0; border-radius: 5px; padding: 7px; cursor: pointer; }
+    .tools button:disabled { cursor: default; }
+    .tools button:disabled svg { opacity: 0.4; }
+    .tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    [data-action="space"][aria-pressed="true"] .world, [data-action="space"]:not([aria-pressed="true"]) .local { display: none; }
+
+    /* tooltips read the button's aria-label; the tool buttons anchor left so the long move-only note stays inside the scene */
+    .tools button::after { content: attr(aria-label); position: absolute; top: calc(100% + 6px); left: 50%; translate: -50% 0; z-index: 1; width: max-content; max-width: 220px; padding: 4px 7px; border-radius: 4px; background: var(--ink); color: var(--page-bg); font: 12px/1.3 var(--sans); text-align: start; pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+    .tools [data-tool]::after { left: 0; translate: none; }
+    .tools button:is(:hover, :focus-visible)::after { opacity: 1; transition-delay: 0.35s; }
+    .tools button:hover { background: color-mix(in srgb, var(--tool) 18%, transparent); }
+    .tools button[aria-pressed="true"] { background: var(--tool); color: var(--on-tool); }
+    .tools button:focus-visible { outline: 2px solid var(--tool); outline-offset: 1px; }
+    .corner { position: absolute; top: 12px; right: 12px; }
+
+    /* the corner button's tooltip opens to its left, inside the scene */
+    .corner button::after { top: 50%; left: auto; right: calc(100% + 6px); translate: 0 -50%; }
+    [data-action="fullscreen"][aria-pressed="true"] .enter, [data-action="fullscreen"]:not([aria-pressed="true"]) .exit { display: none; }
+
+    /* full screen: the viewer takes its frame full screen, keeping the comment box, and this scene fills the page */
+    :root[data-fullscreen] .scene[data-max] { position: fixed; inset: 0; z-index: 1; }
+    :root[data-fullscreen] .scene[data-max] h2 { display: none; }
+    :root[data-fullscreen] .scene[data-max] .view { aspect-ratio: auto; height: 100%; border: 0; border-radius: 0; }
+    .sep { width: 1px; margin: 3px 4px; background: var(--line); }
+    .meta { margin: 0; font: 12px/1.4 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .meta:empty { display: none; }
+</style>
+<h1>Garden Bedroom</h1>
+<main class="scenes">
+<section class="scene" aria-label="Garden Bedroom">
+    <div class="view"><canvas data-scene="garden-bedroom" data-entity="" data-point="" id="garden-bedroom-canvas" class="scene-canvas" aria-label="Garden Bedroom, 3D scene: drag to orbit, scroll to zoom, hold the right button and use W A S D to fly, click an object to select it"></canvas>
+        <div class="hud">
+            <div class="tools" role="toolbar" aria-label="Garden Bedroom tools" hidden>
+                <button type="button" id="garden-bedroom-translate" data-tool="translate" aria-pressed="true" aria-label="Move (1)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20m-7 7-3 3-3-3m10-10 3 3-3 3M9 5l3-3 3 3M5 15l-3-3 3-3"/></svg></button>
+                <button type="button" id="garden-bedroom-rotate" data-tool="rotate" aria-pressed="false" aria-label="Rotate (2)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+                <button type="button" id="garden-bedroom-scale" data-tool="scale" aria-pressed="false" aria-label="Scale (3)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+                <span class="sep" aria-hidden="true"></span>
+                <button type="button" id="garden-bedroom-space" data-action="space" aria-pressed="false" aria-label="World axes (X)"><svg class="world" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg><svg class="local" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg></button>
+                <button type="button" id="garden-bedroom-snap" data-action="snap" aria-pressed="false" aria-label="Snap to 0.1 m and 15° (or hold Shift)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4m3 3 4 4"/></svg></button>
+                <span class="sep" aria-hidden="true"></span>
+                <button type="button" id="garden-bedroom-undo" data-action="undo" aria-label="Undo (Ctrl/⌘ Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+                <button type="button" id="garden-bedroom-redo" data-action="redo" aria-label="Redo (Shift Ctrl/⌘ Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+            </div>
+            <p class="meta scene-selection"></p>
+            <p class="meta scene-status" role="status">Loading scene…</p>
+        </div>
+        <div class="tools corner" role="toolbar" aria-label="Garden Bedroom view"><button type="button" id="garden-bedroom-fullscreen" data-action="fullscreen" aria-pressed="false" aria-label="Full screen"><svg class="enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg><svg class="exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg></button></div>
+    </div>
+    <script type="application/json" class="scene-data">
+{
+ "v": 1,
+ "camera": {
+  "pos": [
+   1.2,
+   1.35,
+   1.2
+  ],
+  "target": [
+   0.55,
+   0.85,
+   -0.5
+  ],
+  "fov": 70
+ },
+ "environment": {
+  "clear": "token:--scene-bg",
+  "ambient": [
+   0.21,
+   0.2,
+   0.2
+  ],
+  "exposure": 1.25,
+  "toneMapping": "aces"
+ },
+ "materials": {},
+ "models": {
+  "room": "models/room.glb",
+  "window": "models/window.glb",
+  "curtains": "models/curtains.glb",
+  "bed": "models/bed.glb",
+  "nightstand": "models/nightstand.glb",
+  "lamp": "models/lamp.glb",
+  "desk": "models/desk.glb",
+  "laptop": "models/laptop.glb",
+  "books": "models/books.glb",
+  "mug": "models/mug.glb",
+  "plant": "models/plant.glb",
+  "chair": "models/chair.glb",
+  "rug": "models/rug.glb",
+  "print": "models/print.glb",
+  "contact": "models/contact.glb",
+  "garden": "models/garden.glb",
+  "sky": "models/sky.glb"
+ },
+ "entities": [
+  {
+   "id": "room",
+   "name": "Room",
+   "model": "room",
+   "shadows": true
+  },
+  {
+   "id": "window",
+   "name": "Casement window",
+   "model": "window",
+   "pos": [
+    0.9,
+    1.55,
+    -1.75
+   ],
+   "shadows": true
+  },
+  {
+   "id": "curtains",
+   "name": "Linen curtains",
+   "model": "curtains",
+   "pos": [
+    0.9,
+    0,
+    -1.75
+   ],
+   "shadows": true
+  },
+  {
+   "id": "rug",
+   "name": "Flatweave rug",
+   "model": "rug",
+   "pos": [
+    -0.55,
+    0,
+    0.42
+   ]
+  },
+  {
+   "id": "bed",
+   "name": "Bed",
+   "model": "bed",
+   "pos": [
+    -0.905,
+    0,
+    -0.35
+   ],
+   "shadows": true
+  },
+  {
+   "id": "bed-shadow",
+   "name": "Contact shadow",
+   "model": "contact",
+   "parent": "bed",
+   "pos": [
+    0.02,
+    0.014,
+    0
+   ],
+   "scale": [
+    2.3,
+    1,
+    1.8
+   ],
+   "locked": true
+  },
+  {
+   "id": "nightstand",
+   "name": "Bedside table",
+   "model": "nightstand",
+   "pos": [
+    -1.79,
+    0,
+    -1.48
+   ],
+   "shadows": true
+  },
+  {
+   "id": "nightstand-shadow",
+   "name": "Contact shadow",
+   "model": "contact",
+   "parent": "nightstand",
+   "pos": [
+    0,
+    0.003,
+    0
+   ],
+   "scale": [
+    0.6,
+    1,
+    0.62
+   ],
+   "locked": true
+  },
+  {
+   "id": "lamp",
+   "name": "Bedside lamp",
+   "model": "lamp",
+   "parent": "nightstand",
+   "pos": [
+    -0.02,
+    0.58,
+    -0.06
+   ],
+   "shadows": true
+  },
+  {
+   "id": "lamp-light",
+   "name": "Lamp glow",
+   "parent": "lamp",
+   "pos": [
+    0,
+    0.47,
+    0
+   ],
+   "light": {
+    "type": "omni",
+    "color": [
+     1,
+     0.7,
+     0.42
+    ],
+    "intensity": 1.3,
+    "range": 2.4
+   }
+  },
+  {
+   "id": "desk",
+   "name": "Walnut desk",
+   "model": "desk",
+   "pos": [
+    0.9,
+    0,
+    -1.42
+   ],
+   "shadows": true
+  },
+  {
+   "id": "desk-shadow",
+   "name": "Contact shadow",
+   "model": "contact",
+   "parent": "desk",
+   "pos": [
+    0,
+    0.003,
+    0
+   ],
+   "scale": [
+    1.35,
+    1,
+    0.75
+   ],
+   "locked": true
+  },
+  {
+   "id": "laptop",
+   "name": "Laptop",
+   "model": "laptop",
+   "parent": "desk",
+   "pos": [
+    -0.1,
+    0.75,
+    0.04
+   ],
+   "rot": [
+    0,
+    8,
+    0
+   ],
+   "shadows": true
+  },
+  {
+   "id": "books",
+   "name": "Book stack",
+   "model": "books",
+   "parent": "desk",
+   "pos": [
+    -0.45,
+    0.75,
+    -0.1
+   ],
+   "rot": [
+    0,
+    -12,
+    0
+   ],
+   "shadows": true
+  },
+  {
+   "id": "mug",
+   "name": "Coffee mug",
+   "model": "mug",
+   "parent": "desk",
+   "pos": [
+    0.25,
+    0.75,
+    0.12
+   ],
+   "rot": [
+    0,
+    30,
+    0
+   ],
+   "shadows": true
+  },
+  {
+   "id": "plant",
+   "name": "Snake plant",
+   "model": "plant",
+   "parent": "desk",
+   "pos": [
+    0.45,
+    0.75,
+    -0.17
+   ],
+   "shadows": true
+  },
+  {
+   "id": "chair",
+   "name": "Lounge chair",
+   "model": "chair",
+   "pos": [
+    0.92,
+    0,
+    -0.45
+   ],
+   "rot": [
+    0,
+    145,
+    0
+   ],
+   "shadows": true
+  },
+  {
+   "id": "chair-shadow",
+   "name": "Contact shadow",
+   "model": "contact",
+   "parent": "chair",
+   "pos": [
+    0,
+    0.016,
+    0
+   ],
+   "scale": [
+    0.85,
+    1,
+    0.9
+   ],
+   "locked": true
+  },
+  {
+   "id": "print",
+   "name": "Framed print",
+   "model": "print",
+   "pos": [
+    -2,
+    1.62,
+    -0.35
+   ],
+   "shadows": true
+  },
+  {
+   "id": "garden",
+   "name": "Garden",
+   "model": "garden"
+  },
+  {
+   "id": "sky",
+   "name": "Sky",
+   "model": "sky"
+  },
+  {
+   "id": "sun",
+   "name": "Afternoon sun",
+   "rot": [
+    -62,
+    -35,
+    0
+   ],
+   "light": {
+    "type": "directional",
+    "color": [
+     1,
+     0.78,
+     0.55
+    ],
+    "intensity": 3.2,
+    "shadows": true
+   }
+  },
+  {
+   "id": "window-fill",
+   "name": "Skylight through the window",
+   "pos": [
+    0.9,
+    1.7,
+    -1.55
+   ],
+   "rot": [
+    -70,
+    0,
+    0
+   ],
+   "light": {
+    "type": "spot",
+    "color": [
+     1,
+     0.95,
+     0.88
+    ],
+    "intensity": 0.6,
+    "range": 6,
+    "inner": 25,
+    "outer": 80
+   }
+  },
+  {
+   "id": "bounce",
+   "name": "Floor bounce",
+   "pos": [
+    -0.4,
+    0.35,
+    0.7
+   ],
+   "light": {
+    "type": "omni",
+    "color": [
+     1,
+     0.7,
+     0.48
+    ],
+    "intensity": 0.5,
+    "range": 3
+   }
+  }
+ ]
+}
+    </script>
+</section>
+</main>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs","playcanvas/camera-controls":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/scripts/esm/camera-controls.mjs"},"integrity":{"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs":"sha384-taKFZkoi0MnbpX25w5jlEe4Kv4+DNMsEybkkBegCSD3k7K4/tqfoxBcKVK9pgi8f","https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/scripts/esm/camera-controls.mjs":"sha384-mwdf62dEa/NFlVc9OvBgOrV/mObR9yRmvDTmB41Cd8YcU+OBC/p2L0DlL4OlkrjK"}}</script>
+<script type="module" src="/_frame/scene/scene-runtime.mjs"></script>

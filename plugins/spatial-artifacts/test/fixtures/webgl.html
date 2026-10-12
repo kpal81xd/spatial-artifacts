@@ -1,0 +1,13 @@
+<title>WebGL Probe</title>
+<style>
+    :root { color-scheme: light; --bg: #f4f5f2; --ink: #1d2320; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg: #151918; --ink: #e3e8e4; } }
+    :root[data-theme="dark"] { color-scheme: dark; --bg: #151918; --ink: #e3e8e4; }
+    body { background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; padding: 16px; }
+</style>
+<p id="out">checking</p>
+<script>
+    const gl = document.createElement('canvas').getContext('webgl2');
+    document.getElementById('out').textContent = gl ? 'webgl2 ready' : 'no webgl2';
+    if (!gl) console.error('no webgl2 context');
+</script>

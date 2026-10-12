@@ -1,0 +1,11 @@
+<style>
+:root { --fg: #222; }
+@media (prefers-color-scheme: dark) { :root { --accent: #f97316; } }
+body { color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+h1 { color: var(--accent); margin: 16px; }
+.wrap { display: block; }
+.wide { width: 2000px; height: 40px; background: #dc2626; }
+</style>
+<h1>No title on this page</h1>
+<section class="wrap"><div class="wide"></div></section>
+<script>console.error('boom from fixture')</script>

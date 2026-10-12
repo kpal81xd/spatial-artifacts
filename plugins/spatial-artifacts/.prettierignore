@@ -1,0 +1,8 @@
+# skill and command prompts are read by the model; formatting would change their text
+**/*.md
+
+# test inputs, kept byte for byte
+test/fixtures
+
+# the scene page template new-scene.mjs parses by its markers
+skills/spatial-3d-design/template/page.html

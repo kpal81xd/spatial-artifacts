@@ -1,0 +1,22 @@
+{
+    "name": "kpal",
+    "interface": {
+        "displayName": "kpal"
+    },
+    "plugins": [
+        {
+            "name": "spatial-artifacts",
+            "description": "3D design for Claude Code and Codex, the way Artifacts handles UI: Claude builds 3D mockups you orbit, adjust with gizmos and comment on, plus 2D pages, all on a local viewer",
+            "version": "0.1.0",
+            "source": {
+                "source": "local",
+                "path": "./plugins/spatial-artifacts"
+            },
+            "policy": {
+                "installation": "AVAILABLE",
+                "authentication": "ON_INSTALL"
+            },
+            "category": "Productivity"
+        }
+    ]
+}

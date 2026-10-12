@@ -1,0 +1,22 @@
+{
+    "name": "spatial-artifacts",
+    "version": "0.1.0",
+    "license": "MIT",
+    "homepage": "https://github.com/kpal81xd/spatial-artifacts",
+    "repository": "https://github.com/kpal81xd/spatial-artifacts",
+    "description": "3D design for Claude Code and Codex, the way Artifacts handles UI: Claude builds 3D mockups you orbit, adjust with gizmos and comment on, plus 2D pages, all on a local viewer",
+    "author": {
+        "name": "kpal"
+    },
+    "skills": "./skills/",
+    "mcpServers": "./codex.mcp.json",
+    "interface": {
+        "displayName": "Spatial Artifacts",
+        "shortDescription": "3D mockups you orbit, adjust and comment on, the way Artifacts handles UI.",
+        "longDescription": "3D design, the way Artifacts handles UI: mockups built as scenes on the PlayCanvas engine that viewers orbit, select and edit with move, rotate and scale gizmos, with their edits kept, and HTML pages such as dashboards and explainers. The SpatialArtifact, SpatialArtifactComments, SpatialArtifactData and SpatialArtifactCheck MCP tools publish them to a daemon on localhost, where each artifact runs on its own origin with a comment overlay (comments pin to 3D objects too), a document database, an asset store and captured runtime diagnostics. SpatialArtifactCheck previews pages in headless Chrome. Nothing is uploaded anywhere. Community project, not affiliated with or endorsed by Anthropic.",
+        "developerName": "kpal",
+        "category": "Productivity",
+        "capabilities": ["skills", "mcp"],
+        "defaultPrompt": "Build me a dashboard artifact for this data."
+    }
+}

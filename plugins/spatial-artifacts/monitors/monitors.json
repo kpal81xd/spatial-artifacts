@@ -1,0 +1,26 @@
+[
+    {
+        "name": "artifact-comments",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "artifact comments sent to Claude",
+        "when": "on-skill-invoke:spatial-design"
+    },
+    {
+        "name": "artifact-comments-plugin",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "artifact comments sent to Claude",
+        "when": "on-skill-invoke:spatial-artifacts:spatial-design"
+    },
+    {
+        "name": "artifact-comments-3d",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "artifact comments sent to Claude",
+        "when": "on-skill-invoke:spatial-3d-design"
+    },
+    {
+        "name": "artifact-comments-3d-plugin",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/watch-comments.ts\"",
+        "description": "artifact comments sent to Claude",
+        "when": "on-skill-invoke:spatial-artifacts:spatial-3d-design"
+    }
+]
