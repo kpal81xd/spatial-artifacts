@@ -1,10 +1,13 @@
 {
     "name": "spatial-artifacts",
     "description": "3D design for Claude Code, the way Artifacts handles UI: Claude builds 3D mockups you orbit, adjust with gizmos and comment on, plus 2D pages, all on a local viewer",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "license": "MIT",
     "homepage": "https://github.com/kpal81xd/spatial-artifacts",
     "repository": "https://github.com/kpal81xd/spatial-artifacts",
+    "documentationUrl": "https://github.com/kpal81xd/spatial-artifacts/blob/main/plugins/spatial-artifacts/README.md",
+    "supportUrl": "https://github.com/kpal81xd/spatial-artifacts/issues",
+    "privacyPolicyUrl": "https://github.com/kpal81xd/spatial-artifacts/blob/main/plugins/spatial-artifacts/README.md#privacy",
     "author": {
         "name": "kpal"
     }
