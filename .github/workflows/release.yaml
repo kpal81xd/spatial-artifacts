@@ -1,0 +1,51 @@
+name: Release
+
+on:
+    push:
+        tags: ['v*']
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        name: Release
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
+
+            # the tag must match every manifest that carries the version, or users install a mismatched plugin
+            - name: Check versions
+              run: |
+                  want="${GITHUB_REF_NAME#v}"
+                  for f in plugins/spatial-artifacts/.claude-plugin/plugin.json plugins/spatial-artifacts/.codex-plugin/plugin.json; do
+                      got=$(jq -r .version "$f")
+                      [ "$got" = "$want" ] || { echo "::error file=$f::version $got, tag $GITHUB_REF_NAME"; exit 1; }
+                  done
+                  for f in .claude-plugin/marketplace.json .agents/plugins/marketplace.json; do
+                      got=$(jq -r '.plugins[] | select(.name == "spatial-artifacts") | .version' "$f")
+                      [ "$got" = "$want" ] || { echo "::error file=$f::version $got, tag $GITHUB_REF_NAME"; exit 1; }
+                  done
+
+            # a fixed install header, then github's notes: the merged pull requests since the previous tag
+            - name: Create release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$(cat <<'EOF'
+                  3D design for Claude Code, the way Artifacts handles UI. Ask Claude for a 3D mockup, orbit it, move things with gizmos and leave comments on objects; Claude reads each comment, changes the scene and replies.
+
+                  ## Install
+
+                  ```
+                  /plugin marketplace add kpal81xd/spatial-artifacts
+                  /plugin install spatial-artifacts@kpal
+                  /reload-plugins
+                  ```
+
+                  Requires Node 22.18 or later. Codex: see the [README](https://github.com/kpal81xd/spatial-artifacts#install).
+
+                  A community project, not affiliated with or endorsed by Anthropic.
+                  EOF
+                  )"
