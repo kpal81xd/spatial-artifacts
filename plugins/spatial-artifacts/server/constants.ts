@@ -93,13 +93,12 @@ export const CAPABILITIES = [
     'files',
     'mcp',
     'room',
-    'sample',
     'self',
     'user',
 ];
 
 // what the viewer allows a page to do as them, asked in the viewer and stored per artifact
-export const GRANT_RE = /^(comments|files|sample|mcp:\S{1,200})$/;
+export const GRANT_RE = /^(comments|files|mcp:\S{1,200})$/;
 
 export const PAGE_EXTS = ['.html', '.htm', '.md'];
 

@@ -110,16 +110,16 @@ describe('daemon', () => {
     after(() => d.close());
 
     test('rejects foreign hosts, missing tokens and cross-origin writes', async () => {
-        assert.equal((await http(d.port, 'GET', '/code/artifacts', { host: `evil.com:${d.port}` })).status, 421);
+        assert.equal((await http(d.port, 'GET', '/code/artifacts', { host: `evil.invalid:${d.port}` })).status, 421);
         assert.equal((await http(d.port, 'GET', '/_agent/artifacts')).status, 401);
-        assert.equal((await shell('POST', `/api/a/${id}/comments`, { text: 'x' }, 'http://evil.com')).status, 403);
+        assert.equal((await shell('POST', `/api/a/${id}/comments`, { text: 'x' }, 'http://evil.invalid')).status, 403);
         const f = `${id}.localhost:${d.port}`;
         assert.equal(
             (
                 await http(d.port, 'POST', '/_frame/api/db', {
                     host: f,
                     body: { verb: 'get', args: {} },
-                    headers: { origin: 'http://evil.com' },
+                    headers: { origin: 'http://evil.invalid' },
                 })
             ).status,
             403,
@@ -549,7 +549,7 @@ describe('daemon', () => {
             true,
         );
         assert.equal((await shell('POST', `/api/a/${a.body.id}/pin`, { on: false })).body.pinned, false);
-        assert.equal((await shell('POST', `/api/a/${a.body.id}/pin`, { on: true }, 'http://evil.com')).status, 403);
+        assert.equal((await shell('POST', `/api/a/${a.body.id}/pin`, { on: true }, 'http://evil.invalid')).status, 403);
     });
 
     test('assets copy between artifacts server side under new ids', async () => {
@@ -946,7 +946,7 @@ describe('mcp over stdio', () => {
         );
         assert.match(
             out((await publishPage('Sample Page', { capabilities: { sample: {} } })).r),
-            /capabilities sample/,
+            /unknown capability "sample"/,
         );
         assert.match(
             out(

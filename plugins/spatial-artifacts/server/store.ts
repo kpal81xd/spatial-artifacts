@@ -581,7 +581,7 @@ export const pending = (ids?: string[]) => {
 /** comments the agent just read need no notice */
 export const ack = (id: string) => writeJson(noticeFile, { ...readJson(noticeFile, {}), [id]: now() });
 
-// grants: what the viewer allowed this artifact's page to do as them (comments, files, sample, mcp:<server>).
+// grants: what the viewer allowed this artifact's page to do as them (comments, files, mcp:<server>).
 // written only by the viewer shell after the viewer's own answer; the daemon checks them on every call
 
 const grantsFile = (id: string) => join(dir(id), 'grants.json');

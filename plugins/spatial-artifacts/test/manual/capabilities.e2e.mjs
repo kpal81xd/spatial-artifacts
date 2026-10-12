@@ -1,5 +1,4 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // drives every capability that acts as the viewer through the real viewer and runtime in Chromium, against a mock
@@ -22,26 +21,6 @@ writeFileSync(
         mcpServers: { notes: { command: process.execPath, args: [`${P}/test/fixtures/mcp-notes.mjs`] } },
     }),
 );
-// a mock Messages API
-const api = createServer((req, res) => {
-    let b = '';
-    req.on('data', (c) => (b += c));
-    req.on('end', () => {
-        const body = JSON.parse(b);
-        res.writeHead(200, { 'content-type': 'text/event-stream' });
-        const ev = (o) => res.write(`data: ${JSON.stringify(o)}\n\n`);
-        const reply = body.system.includes('JSON') ? '{"ok": true}' : 'Hello from Claude';
-        ev({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
-        for (const part of reply.match(/.{1,5}/g))
-            ev({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: part } });
-        ev({ type: 'message_delta', delta: { stop_reason: 'end_turn' } });
-        res.end();
-    });
-});
-await new Promise((r) => api.listen(0, '127.0.0.1', r));
-process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${api.address().port}`;
-process.env.ANTHROPIC_API_KEY = 'k';
-
 const { startDaemon } = await import(`${P}/server/daemon.ts`);
 const { wrapHtml } = await import(`${P}/server/wrap.ts`);
 const d = await startDaemon({ port: 0 });
@@ -62,7 +41,7 @@ window.go = async () => {
   const r = {};
   const perm = await claude.use('permissions');
   r.before = await perm.state();
-  r.request = perm.request(['files', 'sample', 'mcp:host:notes', 'comments']);
+  r.request = perm.request(['files', 'mcp:host:notes', 'comments']);
   return r;
 };
 </script>`;
@@ -70,7 +49,6 @@ const caps = {
     comments: { customAnchors: true },
     files: { project },
     room: {},
-    sample: {},
     mcp: { servers: [{ server: 'host:notes', tools: ['get_notes', 'add_note'] }], project },
     user: {},
 };
@@ -87,7 +65,7 @@ const check = (name, v) => console.log(name.padEnd(28), typeof v === 'string' ? 
 // permissions: prompt states, then one batched dialog
 check('state before', await frame.evaluate(async () => (await claude.use('permissions')).state()));
 await frame.evaluate(() => {
-    window.req = claude.use('permissions').then((p) => p.request(['files', 'sample', 'mcp:host:notes', 'comments']));
+    window.req = claude.use('permissions').then((p) => p.request(['files', 'mcp:host:notes', 'comments']));
 });
 await page.waitForSelector('.ask-box');
 check('consent dialog', (await page.textContent('.ask-box')).replace(/\s+/g, ' ').slice(0, 300));
@@ -117,33 +95,6 @@ check(
             (e) => e.code,
         ),
     ),
-);
-
-// sample
-check(
-    'sample streamed',
-    await frame.evaluate(async () => {
-        const s = await claude.use('sample');
-        const seen = [];
-        const r = await s('hi', { onText: (u) => seen.push(u.text) });
-        return { text: r.text, tier: r.modelTierApplied, updates: seen.length, last: seen.at(-1) };
-    }),
-);
-check(
-    'sample.json',
-    await frame.evaluate(async () => (await claude.use('sample')).json('give json', { cache: false })),
-);
-check(
-    'sample cancelled',
-    await frame.evaluate(async () => {
-        const c = new AbortController();
-        const p = (await claude.use('sample'))('x', { signal: c.signal, cache: false });
-        c.abort();
-        return p.then(
-            () => 'resolved',
-            (e) => e.code,
-        );
-    }),
 );
 
 // mcp: a read, a write the viewer confirms, a handle, a watch

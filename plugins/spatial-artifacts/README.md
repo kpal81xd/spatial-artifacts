@@ -4,7 +4,7 @@ Reference for the plugin. For what it is and how to install it, see the [main RE
 
 The `SpatialArtifact`, `SpatialArtifactComments`, `SpatialArtifactData` and `SpatialArtifactCheck` tools talk to a
 daemon on `127.0.0.1`. Nothing leaves your machine except the CDN scripts and Google Fonts a page loads, and what a page
-you allowed sends through `sample` (the Anthropic API) or to an HTTP MCP server you configured.
+you allowed sends to an HTTP MCP server you configured.
 
 - Gallery: <http://localhost:47328/code/artifacts> (or `/spatial`)
 - Artifact: `http://localhost:47328/code/artifact/<uuid>`. Each page runs on its own origin, `<uuid>.localhost`, so
@@ -50,15 +50,12 @@ Environment variables:
 | `SPATIAL_ARTIFACTS_AUTO_OPEN` | on | `0` stops opening artifacts in the browser |
 | `SPATIAL_ARTIFACTS_USER` | OS username | your name in comments and the `user` capability |
 | `CHROME_PATH` | auto | Chrome binary for `SpatialArtifactCheck` previews |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | unset | credentials for a page's `sample` calls; without them `sample` is off |
-| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | where `sample` sends requests |
-| `SPATIAL_ARTIFACTS_SAMPLE_MODELS` | Opus 5.5, Haiku 4.5 for `quick` | JSON `{"quick", "default", "complex"}` model ids for `sample` |
 
-- Sessions read these when they start. The daemon reads the `sample` settings and `SPATIAL_ARTIFACTS_USER` when it
-  starts, so restart it after changing those.
+- Sessions read these when they start. The daemon reads `SPATIAL_ARTIFACTS_USER` when it starts, so restart it
+  after changing that.
 - The daemon keeps running after the session. Stop it with `kill $(jq .pid ~/.spatial-artifacts/server.json)`.
-- MCP servers for a page's `mcp` capability come from `~/.claude.json`, the project's `.mcp.json`, then
-  `~/.spatial-artifacts/mcp.json` (later wins). A page names one as `host:<name>`. Only stdio and streamable HTTP work.
+- MCP servers for a page's `mcp` capability come from the project's `.mcp.json`, then `~/.spatial-artifacts/mcp.json`
+  (later wins). A page names one as `host:<name>`. Only stdio and streamable HTTP work.
 
 ## Codex
 
@@ -78,7 +75,7 @@ Codex uses the same server and daemon, so both share one set of artifacts.
 - Pages run in a sandboxed iframe under a strict CSP: scripts only from five CDN hosts, styles only from Google Fonts,
   `connect-src 'self'`, no modals or downloads.
 - Comment text, database rows and other page data reach the model fenced and marked as data, not instructions.
-- Anything a page does as you (comments, project files, `sample`, MCP servers) is asked in the viewer's own dialog.
+- Anything a page does as you (comments, project files, MCP servers) is asked in the viewer's own dialog.
   Grants are checked by the daemon on every call. MCP write tools, downloads and sends to Claude are confirmed each
   time.
 
@@ -105,8 +102,8 @@ Scenes built with `spatial-3d-design` use these viewer hooks; 2D pages don't nee
 - A publish won't replace a file this session hasn't read or listed, unless it's named in `overwrite_unread`.
 - `SpatialArtifactData` requires `if_version` to overwrite an existing document (page writes are exempt) and caps a
   batch at 1 MiB.
-- Capabilities: `artifact` (alias `self`), `assets`, `comments`, `db`, `downloads`, `files`, `mcp`, `room`, `sample`
-  and `user`. `room` only connects tabs on this machine, and `sample` is billed to your API key.
+- Capabilities: `artifact` (alias `self`), `assets`, `comments`, `db`, `downloads`, `files`, `mcp`, `room` and
+  `user`. `room` only connects tabs on this machine.
 - `window.claude.hot` carries state across a republish; 3D scenes keep their selection and tool, and show their last
   frame until the new version's models have loaded.
 - Not available: sharing, audiences, handlers, live-doc sync and live watches.

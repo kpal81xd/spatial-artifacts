@@ -31,7 +31,6 @@ import * as db from './db.ts';
 import * as F from './files.ts';
 import { createHosts } from './mcphost.ts';
 import { checkJson, createRooms } from './room.ts';
-import { createSampler, IMAGE_MAX_BYTES, IMAGE_TYPES, IMAGES_MAX } from './sample.ts';
 import * as S from './store.ts';
 import { findTitle, injectRuntime, wrapHtml } from './wrap.ts';
 
@@ -63,7 +62,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
     const hosts = new Map<number, { ids: string[]; at: number; watch?: number }>();
     const shown = new Map<string, string>();
     const rooms = createRooms();
-    const sampler = createSampler();
     const hosts_ = createHosts();
     // one-time approvals for an mcp call the viewer confirmed in the shell: token -> what it allows, until it is used or expires
     const approvals = new Map<string, { id: string; what: string; until: number }>();
@@ -1052,64 +1050,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
             }
             if (path.startsWith('/_frame/api/mcp/') && m === 'POST' && need('mcp')) {
                 return json(res, await frameMcp(id, meta, path.slice('/_frame/api/mcp/'.length), await body(req)));
-            }
-            if (path === '/_frame/api/sample/results' && m === 'POST' && need('sample')) {
-                const b = await body(req);
-                return json(res, { ok: typeof b.callId === 'string' && sampler.results(b.callId, b.results) });
-            }
-            if (path === '/_frame/api/sample' && m === 'POST' && need('sample')) {
-                const b = await body(req);
-                res.writeHead(200, {
-                    'content-type': 'application/x-ndjson',
-                    'cache-control': 'no-store',
-                    'x-content-type-options': 'nosniff',
-                });
-                const out = (ev: Record<string, unknown>) => !res.writableEnded && res.write(`${JSON.stringify(ev)}\n`);
-                if (!S.granted(id, 'sample')) {
-                    return (
-                        out({
-                            type: 'error',
-                            code: 'not_granted',
-                            message: 'the viewer has not allowed this artifact to use Claude',
-                        }),
-                        res.end()
-                    );
-                }
-                const imgs = Array.isArray(b.images) ? b.images : [];
-                if (
-                    imgs.length > IMAGES_MAX ||
-                    imgs.some(
-                        (i: any) =>
-                            !IMAGE_TYPES.includes(i?.type) ||
-                            typeof i?.b64 !== 'string' ||
-                            (i.b64.length * 3) / 4 > IMAGE_MAX_BYTES,
-                    )
-                ) {
-                    return (
-                        out({
-                            type: 'error',
-                            code: 'image_rejected',
-                            message: `at most ${IMAGES_MAX} JPEG, PNG, WebP or GIF images of at most 20 MB`,
-                        }),
-                        res.end()
-                    );
-                }
-                const ctl = new AbortController();
-                res.on('close', () => ctl.abort());
-                await sampler.run(
-                    id,
-                    {
-                        verb: b.verb === 'json' ? 'json' : 'text',
-                        input: b.input,
-                        tier: b.tier,
-                        images: imgs,
-                        tools: b.tools,
-                        cache: b.cache,
-                    },
-                    out,
-                    ctl.signal,
-                );
-                return void res.end();
             }
             if (path.startsWith('/_frame/api/files/') && m === 'POST' && need('files')) {
                 return frameFiles(req, res, id, meta, path.slice('/_frame/api/files/'.length));
