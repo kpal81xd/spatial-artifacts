@@ -66,7 +66,7 @@ const handle = async (msg: any) => {
             return {
                 protocolVersion: VERSIONS.includes(params?.protocolVersion) ? params.protocolVersion : VERSIONS[0],
                 capabilities: { tools: { listChanged: false } },
-                serverInfo: { name: 'spatial-artifacts', version: '0.1.0' },
+                serverInfo: { name: 'spatial-artifacts', version: '0.1.1' },
                 instructions: P.INSTRUCTIONS,
             };
         case 'ping':
