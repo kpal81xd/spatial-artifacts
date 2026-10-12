@@ -924,11 +924,6 @@ const viewer = async (id) => {
         if (c.files) {
             out.push('files');
         }
-        for (const x of Array.isArray(c.mcp?.servers) ? c.mcp.servers : []) {
-            if (typeof x?.server === 'string') {
-                out.push(`mcp:${x.server}`);
-            }
-        }
         return out;
     };
     const describe = (name) => {
@@ -936,15 +931,7 @@ const viewer = async (id) => {
         if (name === 'comments') {
             return ['Comment as you', 'Post, resolve and delete comment threads on this artifact from the page.'];
         }
-        if (name === 'files') {
-            return ['Read project files', `Read files in ${c.files?.project || 'the project'} (never .git).`];
-        }
-        const srv = name.slice(4);
-        const tools = (c.mcp?.servers ?? []).find((x) => x?.server === srv)?.tools ?? [];
-        return [
-            `Use ${srv.replace(/^host:/, '')}`,
-            `Call these tools of your local MCP server ${srv.replace(/^host:/, '')} as you: ${tools.join(', ')}.`,
-        ];
+        return ['Read project files', `Read files in ${c.files?.project || 'the project'} (never .git).`];
     };
 
     let askBox = null;
@@ -1013,32 +1000,7 @@ const viewer = async (id) => {
     const quote = (v, n = 600) => h('pre', { class: 'ask-quote' }, String(v ?? '').slice(0, n));
     const onConfirm = async (m) => {
         let v = 'deny';
-        if (m.kind === 'mcp-call') {
-            v = await ask(
-                `“${S.meta.title}” wants to run ${String(m.tool).slice(0, 128)} on ${String(m.server)
-                    .replace(/^host:/, '')
-                    .slice(0, 128)}`,
-                [
-                    'This tool is not marked read-only, so it may change things. Its input:',
-                    quote(JSON.stringify(m.input ?? {}, null, 1), 1200),
-                ],
-                'Run it',
-                'Cancel',
-            );
-            if (v === 'allow') {
-                // the approval is the daemon's, for this exact call; the page only carries it
-                const [e, r] = await tryCatch(
-                    api(`/api/a/${id}/mcp-approve`, 'POST', { server: m.server, tool: m.tool, input: m.input }),
-                );
-                return post({
-                    type: 'confirm-result',
-                    id: m.id,
-                    result: e ? 'error' : 'allow',
-                    token: r?.token,
-                    message: e?.message,
-                });
-            }
-        } else if (m.kind === 'to-claude') {
+        if (m.kind === 'to-claude') {
             const label = typeof m.data?.label === 'string' ? m.data.label.slice(0, 120) : '';
             v = await ask(
                 `Send this to Claude from “${S.meta.title}”${label ? ` — ${label}` : ''}?`,

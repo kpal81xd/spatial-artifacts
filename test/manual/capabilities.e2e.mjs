@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// drives every capability that acts as the viewer through the real viewer and runtime in Chromium, against a mock
-// Messages API and the fixture MCP server. not part of `npm test` (it needs Playwright):
+// drives every capability that acts as the viewer through the real viewer and runtime in Chromium, against a daemon in
+// this process. not part of `npm test` (it needs Playwright):
 //   CHROME_PATH=/path/to/chrome node test/manual/capabilities.e2e.mjs
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -15,12 +15,6 @@ const P = join(import.meta.dirname, '..', '..', 'plugins', 'spatial-artifacts');
 const project = mkdtempSync(join(tmpdir(), 'da-proj-'));
 mkdirSync(join(project, 'src'));
 writeFileSync(join(project, 'src', 'a.txt'), 'hello files');
-writeFileSync(
-    join(HOME, 'mcp.json'),
-    JSON.stringify({
-        mcpServers: { notes: { command: process.execPath, args: [`${P}/test/fixtures/mcp-notes.mjs`] } },
-    }),
-);
 const { startDaemon } = await import(`${P}/server/daemon.ts`);
 const { wrapHtml } = await import(`${P}/server/wrap.ts`);
 const d = await startDaemon({ port: 0 });
@@ -41,7 +35,7 @@ window.go = async () => {
   const r = {};
   const perm = await claude.use('permissions');
   r.before = await perm.state();
-  r.request = perm.request(['files', 'mcp:host:notes', 'comments']);
+  r.request = perm.request(['files', 'comments']);
   return r;
 };
 </script>`;
@@ -49,7 +43,6 @@ const caps = {
     comments: { customAnchors: true },
     files: { project },
     room: {},
-    mcp: { servers: [{ server: 'host:notes', tools: ['get_notes', 'add_note'] }], project },
     user: {},
 };
 const pub = await agent('POST', '/_agent/publish', { title: 'Caps', html: wrapHtml(html), capabilities: caps });
@@ -65,7 +58,7 @@ const check = (name, v) => console.log(name.padEnd(28), typeof v === 'string' ? 
 // permissions: prompt states, then one batched dialog
 check('state before', await frame.evaluate(async () => (await claude.use('permissions')).state()));
 await frame.evaluate(() => {
-    window.req = claude.use('permissions').then((p) => p.request(['files', 'mcp:host:notes', 'comments']));
+    window.req = claude.use('permissions').then((p) => p.request(['files', 'comments']));
 });
 await page.waitForSelector('.ask-box');
 check('consent dialog', (await page.textContent('.ask-box')).replace(/\s+/g, ' ').slice(0, 300));
@@ -94,42 +87,6 @@ check(
             () => 'read!',
             (e) => e.code,
         ),
-    ),
-);
-
-// mcp: a read, a write the viewer confirms, a handle, a watch
-check(
-    'mcp read',
-    await frame.evaluate(async () => (await (await claude.use('mcp')).callTool('host:notes', 'get_notes', {})).payload),
-);
-await frame.evaluate(() => {
-    window.w = claude.use('mcp').then((m) => m.callTool('host:notes', 'add_note', { text: 'from page' }));
-});
-await page.waitForSelector('.ask-box');
-check('mcp confirm', (await page.textContent('.ask-box')).replace(/\s+/g, ' ').slice(0, 160));
-await page.click('.ask-box .btn.primary');
-check('mcp write', await frame.evaluate(async () => (await window.w).payload));
-check(
-    'mcp handle',
-    await frame.evaluate(async () => (await (await claude.use('mcp')).server('host:notes')).get_notes()),
-);
-check(
-    'mcp watch',
-    await frame.evaluate(
-        () =>
-            new Promise(async (ok) => {
-                const m = await claude.use('mcp');
-                const stop = m.watchTool('host:notes', 'get_notes', {}, (ev) => {
-                    stop();
-                    ok(ev.type + ':' + JSON.stringify(ev.result?.payload));
-                });
-            }),
-    ),
-);
-check(
-    'mcp listTools',
-    await frame.evaluate(async () =>
-        (await (await claude.use('mcp')).listTools()).servers.map((s) => [s.server, s.authStatus, s.tools.length]),
     ),
 );
 

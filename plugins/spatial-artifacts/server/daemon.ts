@@ -1,6 +1,6 @@
 // the local stand-in for claude.ai: serves the viewer shell, each artifact on its own
 // <uuid>.localhost origin, and the agent api the mcp server calls. single writer of state.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, extname, join } from 'node:path';
@@ -29,7 +29,6 @@ import {
 } from './constants.ts';
 import * as db from './db.ts';
 import * as F from './files.ts';
-import { createHosts } from './mcphost.ts';
 import { checkJson, createRooms } from './room.ts';
 import * as S from './store.ts';
 import { findTitle, injectRuntime, wrapHtml } from './wrap.ts';
@@ -62,22 +61,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
     const hosts = new Map<number, { ids: string[]; at: number; watch?: number }>();
     const shown = new Map<string, string>();
     const rooms = createRooms();
-    const hosts_ = createHosts();
-    // one-time approvals for an mcp call the viewer confirmed in the shell: token -> what it allows, until it is used or expires
-    const approvals = new Map<string, { id: string; what: string; until: number }>();
-    const stable = (v: unknown): string =>
-        Array.isArray(v)
-            ? `[${v.map(stable).join(',')}]`
-            : v && typeof v === 'object'
-              ? `{${Object.keys(v)
-                    .sort()
-                    .map((k) => `${JSON.stringify(k)}:${stable((v as any)[k])}`)
-                    .join(',')}}`
-              : JSON.stringify(v ?? null);
-    const callKey = (server: string, tool: string, input: unknown) =>
-        createHash('sha256')
-            .update(`${server}\0${tool}\0${stable(input)}`)
-            .digest('hex');
     const sendTimes = new Map<string, number>();
     const fresh = (t?: number) => !!t && Date.now() - t < PRESENCE_TTL_MS;
     const presence = (id: string) => {
@@ -637,16 +620,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
             );
             return json(res, { id: x.id, to: 'session' });
         }
-        // the viewer confirmed one mcp call in the shell: a token good for that exact call, once, for a minute
-        if (sub === 'mcp-approve' && m === 'POST') {
-            const b = await body(req);
-            if (typeof b.server !== 'string' || typeof b.tool !== 'string') {
-                return send(res, 400, 'server and tool required');
-            }
-            const token = randomBytes(16).toString('hex');
-            approvals.set(token, { id, what: callKey(b.server, b.tool, b.input), until: Date.now() + 60000 });
-            return json(res, { token });
-        }
         // a project file the viewer confirmed saving in the shell's own dialog; never handed to the page
         if (sub === 'files' && m === 'GET' && (parts[4] === 'stat' || parts[4] === 'raw')) {
             // only the viewer's own link starts the save; another page (an artifact's own origin included) cannot
@@ -829,105 +802,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
         return notFound(res);
     };
 
-    // the mcp capability: the page's manifest names `host:<name>` servers and their tools; each server is the viewer's to allow,
-    // and a tool not marked read-only runs only with a one-time approval the viewer gave in the shell for that exact call
-    const manifestOf = (meta: S.Meta) => {
-        const c: any = meta.capabilities['mcp'] ?? {};
-        return {
-            project: typeof c.project === 'string' ? c.project : '',
-            servers: (Array.isArray(c.servers) ? c.servers : []) as { server: string; tools: string[] }[],
-        };
-    };
-    const frameMcp = async (id: string, meta: S.Meta, verb: string, b: any) => {
-        const { project, servers } = manifestOf(meta);
-        const entry = (srv: unknown) => servers.find((x) => x.server === srv);
-        const err = (code: string, message: string, extra: object = {}) => ({ error: { code, message, ...extra } });
-        try {
-            if (verb === 'list') {
-                const out = [];
-                for (const x of servers.filter((x) => b.server === undefined || x.server === b.server)) {
-                    if (!S.granted(id, `mcp:${x.server}`)) {
-                        out.push({
-                            server: x.server,
-                            authStatus: 'unknown',
-                            tools: x.tools.map((name) => ({ name, description: '' })),
-                        });
-                        continue;
-                    }
-                    const all = await hosts_.tools(project, x.server).catch(() => undefined);
-                    if (!all) {
-                        continue;
-                    }
-                    out.push({
-                        server: x.server,
-                        authStatus: 'connected',
-                        tools: all
-                            .filter((t) => x.tools.includes(t.name))
-                            .map((t) => ({
-                                name: t.name,
-                                description: t.description ?? '',
-                                ...(t.annotations && {
-                                    annotations: {
-                                        ...('readOnlyHint' in t.annotations && {
-                                            readOnlyHint: t.annotations['readOnlyHint'],
-                                        }),
-                                        ...('destructiveHint' in t.annotations && {
-                                            destructiveHint: t.annotations['destructiveHint'],
-                                        }),
-                                    },
-                                }),
-                            })),
-                    });
-                }
-                return { servers: out };
-            }
-            const x = entry(b.server);
-            if (typeof b.server !== 'string' || typeof b.tool !== 'string') {
-                return err('bad_request', 'server and tool must be strings');
-            }
-            if (!x || !x.tools.includes(b.tool)) {
-                return err('not_in_manifest', `${b.server} / ${b.tool} is not in this artifact's manifest`, {
-                    server: b.server,
-                });
-            }
-            if (!S.granted(id, `mcp:${x.server}`)) {
-                return err('not_in_manifest', `the viewer has not allowed ${x.server} for this page`, {
-                    server: x.server,
-                });
-            }
-            const tool = (await hosts_.tools(project, x.server)).find((t) => t.name === b.tool);
-            if (!tool) {
-                return err('not_in_manifest', `${x.server} no longer lists ${b.tool}`, { server: x.server });
-            }
-            if (verb === 'describe') {
-                return {
-                    name: tool.name,
-                    description: tool.description ?? '',
-                    inputSchema: tool.inputSchema ?? { type: 'object' },
-                    ...(tool.outputSchema !== undefined && { outputSchema: tool.outputSchema }),
-                    ...(tool.annotations && { annotations: tool.annotations }),
-                };
-            }
-            if (verb !== 'call') {
-                return err('bad_request', 'unknown method');
-            }
-            if (tool.annotations?.['readOnlyHint'] !== true) {
-                const a = typeof b.approval === 'string' ? approvals.get(b.approval) : undefined;
-                if (!a || a.id !== id || a.until < Date.now() || a.what !== callKey(x.server, b.tool, b.input)) {
-                    return err('confirm_required', 'the viewer must confirm this call');
-                }
-                approvals.delete(b.approval);
-            }
-            return await hosts_.call(project, x.server, b.tool, b.input);
-        } catch (e: any) {
-            return err(e?.code ?? 'upstream_error', e?.message ?? String(e), {
-                server: b.server,
-                ...(e?.retryable && { retryable: true }),
-                ...(e?.result !== undefined && { result: e.result }),
-            });
-        }
-    };
-
     // the files capability: the project folder the artifact declares, read as the viewer once they allowed it
     const projectOf = (meta: S.Meta) => {
         const p = (meta.capabilities['files'] as any)?.project;
@@ -1047,9 +921,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
                     return json(res, rooms.leave(id, b));
                 }
                 return notFound(res);
-            }
-            if (path.startsWith('/_frame/api/mcp/') && m === 'POST' && need('mcp')) {
-                return json(res, await frameMcp(id, meta, path.slice('/_frame/api/mcp/'.length), await body(req)));
             }
             if (path.startsWith('/_frame/api/files/') && m === 'POST' && need('files')) {
                 return frameFiles(req, res, id, meta, path.slice('/_frame/api/files/'.length));
@@ -1205,7 +1076,6 @@ export const startDaemon = (opts: { port?: number; token?: string } = {}) => {
                 close: () =>
                     new Promise((r) => {
                         clearInterval(sweeper);
-                        hosts_.closeAll();
                         for (const c of [...shellSse, ...frameSse]) {
                             c.res.end();
                         }

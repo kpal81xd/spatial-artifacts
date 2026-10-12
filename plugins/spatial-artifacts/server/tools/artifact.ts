@@ -24,7 +24,6 @@ import {
     PAGE_EXTS,
     TEXT_ASSET_EXTS,
 } from '../constants.ts';
-import { configured } from '../mcphost.ts';
 import { findTitle, unwrap, wrapHtml, wrapMarkdown } from '../wrap.ts';
 
 import {
@@ -295,7 +294,7 @@ const unreadFiles = (id: string, live: any, files: Record<string, unknown>, allo
     return { unread, changed };
 };
 
-// the project folder `files` and `mcp` work against: the one the declaration names, else this session's working directory
+// the project folder `files` works against: the one the declaration names, else this session's working directory
 const projectFor = (name: string, p: unknown) => {
     if (p !== undefined && typeof p !== 'string') {
         bad(`capabilities.${name}.project: pass the project folder's absolute path`);
@@ -368,44 +367,6 @@ const checkCapabilities = (caps: any, contract: any) => {
                         );
                     }
                 }
-            }
-            if (k === 'mcp') {
-                const servers = c.servers;
-                if (!Array.isArray(servers) || !servers.length) {
-                    bad(
-                        'capabilities.mcp: declare `servers: [{server, tools: [...]}]` naming one server or more; if the page needs no connector access, omit mcp from capabilities entirely',
-                    );
-                }
-                const project = projectFor('mcp', c.project);
-                const have = configured(project);
-                for (const [i, x] of servers.entries()) {
-                    if (!x || typeof x.server !== 'string') {
-                        bad(`capabilities.mcp.servers[${i}]: needs a \`server\` name`);
-                    }
-                    if (
-                        !Array.isArray(x.tools) ||
-                        !x.tools.length ||
-                        x.tools.some((t: unknown) => typeof t !== 'string' || !t)
-                    ) {
-                        bad(
-                            `capabilities.mcp.servers[${i}] (${x.server}): \`tools\` must name the tools the page calls — an empty or omitted list never means all tools`,
-                        );
-                    }
-                    if (!x.server.startsWith('host:')) {
-                        bad(
-                            `capabilities.mcp.servers[${i}]: "${x.server}" is a claude.ai connector, which the local viewer cannot reach — declare one of your locally configured MCP servers as host:<name>${have.size ? ` (configured here: ${[...have.keys()].join(', ')})` : ' (none are configured for this project)'}`,
-                        );
-                    }
-                    if (!have.has(x.server)) {
-                        bad(
-                            `capabilities.mcp.servers[${i}]: no MCP server is configured as ${x.server.slice(5)} for ${project}${have.size ? `; configured: ${[...have.keys()].join(', ')}` : ''} — servers come from the project's .mcp.json or ~/.spatial-artifacts/mcp.json`,
-                        );
-                    }
-                }
-                out.mcp = {
-                    servers: servers.map((x: any) => ({ server: x.server, tools: [...new Set(x.tools as string[])] })),
-                    project,
-                };
             }
         }
     }

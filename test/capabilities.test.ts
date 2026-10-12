@@ -1,4 +1,4 @@
-// the capabilities that act as the viewer: grants, comments, files, room and mcp, against a daemon in this process
+// the capabilities that act as the viewer: grants, comments, files and room, against a daemon in this process
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
@@ -10,7 +10,6 @@ const HOME = mkdtempSync(join(tmpdir(), 'da-caps-'));
 process.env['SPATIAL_ARTIFACTS_DIR'] = HOME;
 const { startDaemon } = await import('../plugins/spatial-artifacts/server/daemon.ts');
 const { wrapHtml } = await import('../plugins/spatial-artifacts/server/wrap.ts');
-const { configured } = await import('../plugins/spatial-artifacts/server/mcphost.ts');
 
 type Res = { status: number; body: any; headers: Record<string, unknown>; raw: Buffer };
 const http = (
@@ -273,66 +272,5 @@ describe('capabilities', () => {
         assert.equal((await ev.wait((e) => e.event === 'to-claude')).data.id, r.body.id);
         assert.equal((await agent('POST', '/_agent/pending', { host: 777 })).body.length, 0);
         ev.close();
-    });
-
-    test('mcp: host servers from the local config, consent per server, writes only with a one-time viewer approval', async () => {
-        writeFileSync(
-            join(HOME, 'mcp.json'),
-            JSON.stringify({
-                mcpServers: {
-                    'my notes': {
-                        command: process.execPath,
-                        args: [join(import.meta.dirname, 'fixtures', 'mcp-notes.mjs')],
-                    },
-                },
-            }),
-        );
-        assert.ok(configured(project).has('host:my_notes'));
-        const id = await publish({
-            mcp: { servers: [{ server: 'host:my_notes', tools: ['get_notes', 'add_note'] }], project },
-        });
-        const mcp = (verb: string, b: unknown) => page(id, 'POST', `/_frame/api/mcp/${verb}`, b).then((r) => r.body);
-        assert.deepEqual((await mcp('list', {})).servers[0], {
-            server: 'host:my_notes',
-            authStatus: 'unknown',
-            tools: [
-                { name: 'get_notes', description: '' },
-                { name: 'add_note', description: '' },
-            ],
-        });
-        assert.equal((await mcp('call', { server: 'host:my_notes', tool: 'get_notes' })).error.code, 'not_in_manifest');
-        await grant(id, 'mcp:host:my_notes');
-        const listed = (await mcp('list', {})).servers[0];
-        assert.equal(listed.authStatus, 'connected');
-        assert.deepEqual(
-            listed.tools.map((t: any) => [t.name, t.annotations.readOnlyHint]),
-            [
-                ['get_notes', true],
-                ['add_note', false],
-            ],
-        );
-        assert.deepEqual((await mcp('call', { server: 'host:my_notes', tool: 'get_notes', input: {} })).payload, {
-            notes: ['first'],
-        });
-        assert.equal((await mcp('call', { server: 'host:my_notes', tool: 'secret' })).error.code, 'not_in_manifest');
-        const write = { server: 'host:my_notes', tool: 'add_note', input: { text: 'second' } };
-        assert.equal((await mcp('call', write)).error.code, 'confirm_required');
-        const { token } = (await shell('POST', `/api/a/${id}/mcp-approve`, write)).body;
-        assert.equal(
-            (await mcp('call', { ...write, input: { text: 'other' }, approval: token })).error.code,
-            'confirm_required',
-        );
-        assert.deepEqual((await mcp('call', { ...write, approval: token })).payload, { count: 2 });
-        assert.equal(
-            (await mcp('call', { ...write, approval: token })).error.code,
-            'confirm_required',
-            'an approval is good once',
-        );
-        const t2 = (await shell('POST', `/api/a/${id}/mcp-approve`, { ...write, input: {} })).body.token;
-        assert.equal((await mcp('call', { ...write, input: {}, approval: t2 })).error.code, 'tool_error');
-        assert.equal(
-            (await mcp('describe', { server: 'host:my_notes', tool: 'add_note' })).inputSchema.required[0],
-            'text',
-        );
     });
 });
