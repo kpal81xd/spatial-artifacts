@@ -264,7 +264,7 @@ const next = (cur: Doc | undefined, w: Write, path: string): { path: string; nex
             return { path, next: { data: { ...cur.data, [w.field]: s }, version, updatedAt: at } };
         }
         default:
-            return fail('invalid_argument', `unknown op ${w.op}`);
+            return fail('invalid_argument', `unknown write operation "${w.op}"`);
     }
 };
 

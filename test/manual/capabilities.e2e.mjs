@@ -11,7 +11,7 @@ const { chromium } = await import('playwright').catch(() =>
 );
 const HOME = mkdtempSync(join(tmpdir(), 'da-e2e-'));
 process.env.SPATIAL_ARTIFACTS_DIR = HOME;
-const P = join(import.meta.dirname, '..', '..');
+const P = join(import.meta.dirname, '..', '..', 'plugins', 'spatial-artifacts');
 const project = mkdtempSync(join(tmpdir(), 'da-proj-'));
 mkdirSync(join(project, 'src'));
 writeFileSync(join(project, 'src', 'a.txt'), 'hello files');

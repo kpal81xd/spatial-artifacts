@@ -1,0 +1,4 @@
+{
+    "extends": "../plugins/spatial-artifacts/tsconfig.src.json",
+    "include": ["."]
+}

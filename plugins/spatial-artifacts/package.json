@@ -6,8 +6,7 @@
     "scripts": {
         "daemon": "node server/daemon.ts",
         "lint": "prettier --check . && eslint . && tsc --project ./tsconfig.json && tsc --project ./tsconfig.dev.json && tsc --project ./tsconfig.src.json",
-        "lint-fix": "prettier --write . && eslint --fix .",
-        "test": "node --test test/*.test.ts"
+        "lint-fix": "prettier --write . && eslint --fix ."
     },
     "engines": {
         "node": ">=22.18"

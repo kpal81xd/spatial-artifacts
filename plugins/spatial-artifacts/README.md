@@ -20,7 +20,6 @@ commands/spatial.md               /spatial
 server/                           MCP server (mcp.ts, tools/) and the daemon (daemon.ts, store, db, preview, ...)
 web/                              viewer shell, gallery and the in-page runtime (window.claude, comment mode)
 skills/                           spatial-design, spatial-diagramming, spatial-capabilities, spatial-3d-design
-test/                             node --test suites
 ~/.spatial-artifacts/             all state: artifacts, comments, db, assets, grants, server.json, server.log
 ```
 

@@ -8,10 +8,10 @@
     },
     "scripts": {
         "dev": "bun scripts/dev.ts",
-        "lint": "bun run --cwd plugins/spatial-artifacts lint",
-        "lint-fix": "bun run --cwd plugins/spatial-artifacts lint-fix",
-        "test": "bun run --cwd plugins/spatial-artifacts test",
-        "typecheck": "tsc -p plugins/spatial-artifacts/tsconfig.src.json && tsc -p plugins/spatial-artifacts/tsconfig.dev.json"
+        "lint": "bun run --cwd plugins/spatial-artifacts lint && prettier --check test && eslint test",
+        "lint-fix": "bun run --cwd plugins/spatial-artifacts lint-fix && prettier --write test && eslint --fix test",
+        "test": "node --test test/*.test.ts",
+        "typecheck": "tsc -p plugins/spatial-artifacts/tsconfig.src.json && tsc -p plugins/spatial-artifacts/tsconfig.dev.json && tsc -p test"
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",
