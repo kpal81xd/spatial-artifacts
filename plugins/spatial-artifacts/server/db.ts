@@ -256,7 +256,7 @@ const next = (cur: Doc | undefined, w: Write, path: string): { path: string; nex
             if (n > 1 && !w.replace_all) {
                 return fail(
                     'edit_ambiguous',
-                    `old_str occurs ${n} times in field ${w.field}; pass replace_all or a longer old_str`,
+                    `old_str occurs ${n} times in field ${w.field}; set replace_all or use a longer old_str`,
                 );
             }
             const to = w.new_str;
