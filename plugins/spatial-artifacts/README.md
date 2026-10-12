@@ -62,6 +62,20 @@ Codex uses the same server and daemon, so both share one set of artifacts.
 - Codex has no monitors. On your first message the prompt hook starts a `watch-comments.ts --codex` watcher for that
   session, which hands comments to `codex queue` (experimental) and exits with Codex.
 
+## Privacy
+
+The plugin has no server of its own and collects nothing. It runs a daemon on `127.0.0.1` that only your browser and
+your Claude Code session reach.
+
+- **Stored, on your machine only:** published pages and their files, comment threads (with your OS username as the
+  author, or `SPATIAL_ARTIFACTS_USER`), images attached to comments, page database rows, uploaded assets and the
+  permissions you granted. All of it lives in `~/.spatial-artifacts`; delete that folder to remove it.
+- **Sent to Claude:** what you ask Claude to read through the plugin's tools, such as comments you send to Claude and
+  page data, as part of your normal Claude Code session.
+- **Sent elsewhere:** nothing by the plugin. Pages load scripts from five CDN hosts (cdnjs, jsDelivr, unpkg, Tailwind,
+  jQuery) and fonts from Google Fonts, so your browser requests those as it would on any website.
+- **Not collected:** no analytics, telemetry, accounts or credentials.
+
 ## Security
 
 - Binds `127.0.0.1` only and rejects any `Host` other than `localhost`, `127.0.0.1` or `<uuid>.localhost`.
