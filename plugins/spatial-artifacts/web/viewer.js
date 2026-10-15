@@ -586,9 +586,7 @@ const gallery = () => {
         }
 
         // pinned first, then newest
-        list = r.sort(
-            (a, b) => (b.pinned ?? '').localeCompare(a.pinned ?? '') || b.updatedAt.localeCompare(a.updatedAt),
-        );
+        list = r.sort((a, b) => !!b.pinned - !!a.pinned || b.updatedAt.localeCompare(a.updatedAt));
         render();
     };
 
