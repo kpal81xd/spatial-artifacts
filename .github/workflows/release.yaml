@@ -1,8 +1,16 @@
 name: Release
 
 on:
-    push:
-        tags: ['v*']
+    workflow_dispatch:
+        inputs:
+            bump:
+                description: Version increment
+                type: choice
+                options: [patch, minor, major]
+                default: patch
+
+concurrency:
+    group: release
 
 permissions:
     contents: write
@@ -10,30 +18,59 @@ permissions:
 jobs:
     release:
         name: Release
+        if: github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v7
 
-            # the tag must match every manifest that carries the version, or users install a mismatched plugin
-            - name: Check versions
+            # every manifest carries the version; bump them together so users never install a mismatched plugin
+            - name: Bump versions
+              id: bump
+              env:
+                  BUMP: ${{ inputs.bump }}
               run: |
-                  want="${GITHUB_REF_NAME#v}"
-                  for f in plugins/spatial-artifacts/.claude-plugin/plugin.json plugins/spatial-artifacts/.codex-plugin/plugin.json; do
+                  cur=$(jq -r .version plugins/spatial-artifacts/.claude-plugin/plugin.json)
+                  IFS=. read -r major minor patch <<< "$cur"
+                  case "$BUMP" in
+                      major) next="$((major + 1)).0.0" ;;
+                      minor) next="$major.$((minor + 1)).0" ;;
+                      patch) next="$major.$minor.$((patch + 1))" ;;
+                  esac
+                  if git ls-remote --exit-code --tags origin "refs/tags/v$next" > /dev/null; then
+                      echo "::error::tag v$next already exists"; exit 1
+                  fi
+                  plugins=(plugins/spatial-artifacts/.claude-plugin/plugin.json plugins/spatial-artifacts/.codex-plugin/plugin.json)
+                  markets=(.claude-plugin/marketplace.json .agents/plugins/marketplace.json)
+                  sed -i "s/\"version\": \"$cur\"/\"version\": \"$next\"/" "${plugins[@]}" "${markets[@]}"
+                  for f in "${plugins[@]}"; do
                       got=$(jq -r .version "$f")
-                      [ "$got" = "$want" ] || { echo "::error file=$f::version $got, tag $GITHUB_REF_NAME"; exit 1; }
+                      [ "$got" = "$next" ] || { echo "::error file=$f::version $got, want $next"; exit 1; }
                   done
-                  for f in .claude-plugin/marketplace.json .agents/plugins/marketplace.json; do
+                  for f in "${markets[@]}"; do
                       got=$(jq -r '.plugins[] | select(.name == "spatial-artifacts") | .version' "$f")
-                      [ "$got" = "$want" ] || { echo "::error file=$f::version $got, tag $GITHUB_REF_NAME"; exit 1; }
+                      [ "$got" = "$next" ] || { echo "::error file=$f::version $got, want $next"; exit 1; }
                   done
+                  echo "tag=v$next" >> "$GITHUB_OUTPUT"
+
+            # atomic so main and the tag land together or not at all
+            - name: Commit and tag
+              env:
+                  TAG: ${{ steps.bump.outputs.tag }}
+              run: |
+                  git config user.name 'github-actions[bot]'
+                  git config user.email '41898283+github-actions[bot]@users.noreply.github.com'
+                  git commit -am "chore: release $TAG"
+                  git tag -a "$TAG" -m "$TAG"
+                  git push --atomic origin HEAD:refs/heads/main "$TAG"
 
             # a fixed install header, then github's notes: the merged pull requests since the previous tag
             - name: Create release
               env:
                   GH_TOKEN: ${{ github.token }}
+                  TAG: ${{ steps.bump.outputs.tag }}
               run: |
-                  gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$(cat <<'EOF'
+                  gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes --notes "$(cat <<'EOF'
                   3D design for Claude Code, the way Artifacts handles UI. Ask Claude for a 3D mockup, orbit it, move things with gizmos and leave comments on objects; Claude reads each comment, changes the scene and replies.
 
                   ## Install
