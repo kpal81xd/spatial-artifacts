@@ -5,13 +5,13 @@
     },
     "metadata": {
         "description": "3D design for Claude Code, the way Artifacts handles UI",
-        "version": "0.2.0"
+        "version": "0.2.1"
     },
     "plugins": [
         {
             "name": "spatial-artifacts",
             "description": "3D design for Claude Code, the way Artifacts handles UI: Claude builds 3D mockups you orbit, adjust with gizmos and comment on, plus 2D pages, all on a local viewer",
-            "version": "0.2.0",
+            "version": "0.2.1",
             "license": "MIT",
             "source": "./plugins/spatial-artifacts",
             "category": "productivity"
