@@ -1768,3 +1768,153 @@ kbd {
     color: var(--muted);
     font-size: 11px;
 }
+
+/* @claude mentions: a chip like a person's in a doc, in the comment and in the box while typing */
+.text mark {
+    padding: 0 3px;
+    border-radius: 4px;
+    background: var(--active-bg);
+    color: var(--active-fg);
+    font-weight: 500;
+}
+
+.mention-field {
+    position: relative;
+}
+
+.draft-pop .mention-field {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 76px;
+}
+
+.draft-pop .mention-field textarea {
+    flex: 1 1 auto;
+}
+
+/* the mirror draws the text; the textarea on top keeps the caret, selection and input */
+.mention-field textarea {
+    position: relative;
+    color: transparent;
+    caret-color: var(--fg);
+    background: transparent;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.mention-field textarea::placeholder {
+    color: var(--faint);
+}
+
+.mention-field textarea::selection {
+    /* see-through, so the mirror's text shows under it */
+    color: transparent;
+    background: color-mix(in srgb, var(--focus) 35%, transparent);
+}
+
+.mention-mirror {
+    position: absolute;
+    inset: 0;
+    padding: 8px 10px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: var(--text-body);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    scrollbar-gutter: stable;
+    pointer-events: none;
+}
+
+.mention-mirror mark {
+    /* no padding or weight: the textarea's caret and selection lie over these exact glyphs */
+    border-radius: 4px;
+    background: var(--active-bg);
+    box-shadow: 0 0 0 1px var(--active-bg);
+    color: var(--active-fg);
+}
+
+.mention-menu {
+    position: fixed;
+    z-index: 50;
+    min-width: 168px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-up);
+}
+
+.mention-head {
+    padding: 4px 8px 2px;
+    color: var(--faint);
+    font-size: var(--text-caption);
+}
+
+.mention-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--hover);
+    font-size: var(--text-body);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mention-opt .avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--clay);
+}
+
+.mention-opt .avatar svg {
+    width: 11px;
+    height: 11px;
+    color: #fff;
+}
+
+/* quotes a comment into a reply to @Claude; shown on hover or focus so threads stay quiet */
+.comment-meta .ask {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    padding: 1px 6px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--accent);
+    font-size: var(--text-caption);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s var(--ease);
+}
+
+.comment-meta .ask svg {
+    width: 11px;
+    height: 11px;
+}
+
+.comment:hover .ask,
+.comment .ask:focus-visible {
+    opacity: 1;
+}
+
+.comment-meta .ask:hover {
+    background: var(--accent-soft);
+}
+
+@media (pointer: coarse) {
+    .comment-meta .ask {
+        opacity: 1;
+    }
+}
