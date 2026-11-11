@@ -861,6 +861,8 @@ const viewer = async (id) => {
         showResolved: false,
         send: localStorage.getItem(SEND_KEY) !== '0',
         gone: false,
+        presence: 'none',
+        claudeOn: new Set(),
     };
     const hash = ANCHOR_RE.test(location.hash) ? location.hash : '';
     const shown = () => S.view ?? S.meta.ver;
@@ -930,11 +932,37 @@ const viewer = async (id) => {
     );
     const presenceText = h('span', { class: 'sr-only' });
     const presenceEl = h('span', { class: 'presence', role: 'status' }, icon('claude'), presenceText);
+
+    // claude's cursor in the page: on the anchors of threads it is working on, while a session is there; it flies
+    // in from the edge for a thread it was not already on, and appears in place after a reload
+    const sendClaude = () => {
+        const on = S.presence !== 'none' && S.view === null;
+        const work = on ? S.threads.filter((t) => !t.resolved_at && t.claude?.status === 'working') : [];
+        const targets = work
+            .filter((t) => t.anchor?.path)
+            .map((t) => ({
+                tid: t.id,
+                path: t.anchor.path,
+                region: t.anchor.region,
+                at: t.anchor.at,
+                snippet: t.anchor.snippet,
+                inside: t.anchor.inside,
+            }));
+        const enter = targets.some((t) => !S.claudeOn.has(t.tid));
+        S.claudeOn = new Set(targets.map((t) => t.tid));
+        post({ type: 'claude', targets, enter });
+        presenceEl.classList.toggle('working', work.length > 0);
+        presenceEl.title = work.length
+            ? `Claude is working on ${work.length === 1 ? 'a comment' : `${work.length} comments`}`
+            : presenceEl.dataset.title;
+    };
     const setPresence = (s) => {
         const [label, detail] = PRESENCE[s] ?? PRESENCE.none;
-        presenceEl.dataset.state = PRESENCE[s] ? s : 'none';
-        presenceEl.title = `${label}. ${detail}`;
+        S.presence = PRESENCE[s] ? s : 'none';
+        presenceEl.dataset.state = S.presence;
+        presenceEl.dataset.title = `${label}. ${detail}`;
         presenceText.textContent = label;
+        sendClaude();
     };
     setPresence(meta.presence);
     const permBtn = h(
@@ -2249,6 +2277,7 @@ const viewer = async (id) => {
         }
         renderPanel();
         sendPins();
+        sendClaude();
     };
 
     // frame messages: only from this artifact's origin and this frame
@@ -2266,6 +2295,7 @@ const viewer = async (id) => {
             post({ type: 'mode', on: S.mode });
             post({ type: 'fullscreen', on: isFull() });
             sendPins();
+            sendClaude();
         } else if (m.type === 'anchor') {
             const a = cleanAnchor(m.anchor);
             if (!a?.path) {
