@@ -399,6 +399,30 @@ input {
     background: var(--bg);
 }
 
+/* claude is working on a sent comment: the avatar fills with claude's colour and breathes */
+.presence.working {
+    background: var(--clay);
+    animation: breathe 1.6s var(--ease) infinite;
+}
+
+.presence.working svg {
+    color: #fff;
+}
+
+@keyframes breathe {
+    50% {
+        box-shadow:
+            0 0 0 2px var(--bg),
+            0 0 0 5px color-mix(in srgb, var(--clay) 35%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .presence.working {
+        animation: none;
+    }
+}
+
 :focus-visible {
     outline: none;
     box-shadow:
