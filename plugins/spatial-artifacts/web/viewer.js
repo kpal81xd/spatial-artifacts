@@ -21,6 +21,13 @@ const THEMES = ['system', 'light', 'dark'];
 const VIEW_KEY = 'spatial-artifacts.gallery-view';
 const ANCHOR_RE = /^#[A-Za-z0-9._~-]{1,200}$/;
 const INSIDE_MAX = 16;
+
+// "@claude" in a person's comment sends it to Claude; the daemon's rule, and the same rule cutting text around it
+const MENTION_RE = /(^|\s)@claude\b/i;
+const MENTION_SPLIT = /(?<=^|\s)(@claude)\b/i;
+
+// a comment's words "Ask Claude" quotes into the reply
+const QUOTE_MAX = 160;
 // a touch screen taps to comment: no drag-drawn areas and no keyboard shortcuts
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 // the header's presence circle: whether a Claude session linked to this artifact is there to hear comments
@@ -207,6 +214,131 @@ const icon = (name) => {
         s.append(p);
     }
     return s;
+};
+
+// "@claude" as the daemon reads it (store.ts mentionsClaude): a whole word after a space or the line start
+const mentions = (s) => MENTION_RE.test(s);
+const withMentions = (s) => s.split(MENTION_SPLIT).map((x, i) => (i % 2 ? h('mark', {}, x) : x));
+
+let mentionSeq = 0;
+
+// a comment box that suggests Claude after "@" and shows "@Claude" as a chip, the way it will be sent: the text is
+// drawn by a mirror behind the transparent textarea, which also places the menu at the caret
+const mentionField = (ta) => {
+    const n = ++mentionSeq;
+    const mirror = h('div', { class: 'mention-mirror', 'aria-hidden': 'true' });
+    const opt = h(
+        'button',
+        { type: 'button', class: 'mention-opt', role: 'option', id: `mention-${n}-claude`, 'aria-selected': 'true' },
+        h('span', { class: 'avatar' }, icon('claude')),
+        'Claude',
+    );
+    const menu = h(
+        'div',
+        { class: 'mention-menu', id: `mention-${n}`, role: 'listbox', 'aria-label': 'Mention', hidden: true },
+        h('div', { class: 'mention-head', 'aria-hidden': 'true' }, 'People'),
+        opt,
+    );
+    const field = h('div', { class: 'mention-field' }, mirror, ta, menu);
+    for (const [k, v] of Object.entries({
+        'aria-autocomplete': 'list',
+        'aria-controls': menu.id,
+        'aria-expanded': 'false',
+    })) {
+        ta.setAttribute(k, v);
+    }
+
+    // the "@" word the caret ends, while it can still become "@claude"
+    const token = () => {
+        const m = ta.selectionStart === ta.selectionEnd && /(?:^|\s)@(\w*)$/.exec(ta.value.slice(0, ta.selectionStart));
+        return m && 'claude'.startsWith(m[1].toLowerCase()) ? m[1] : null;
+    };
+    const paint = () => {
+        mirror.replaceChildren(...withMentions(ta.value), '\u200b');
+        mirror.scrollTop = ta.scrollTop;
+    };
+    const caret = () => {
+        let k = ta.selectionStart;
+        for (const node of mirror.childNodes) {
+            const t = node.nodeType === Node.TEXT_NODE ? node : node.firstChild;
+            const len = t?.length ?? 0;
+            if (t && k <= len) {
+                const r = document.createRange();
+                r.setStart(t, k);
+                const b = r.getBoundingClientRect();
+                return b.height ? b : null;
+            }
+            k -= len;
+        }
+        return null;
+    };
+    const show = (on) => {
+        menu.hidden = !on;
+        ta.setAttribute('aria-expanded', String(on));
+        if (!on) {
+            return ta.removeAttribute('aria-activedescendant');
+        }
+        ta.setAttribute('aria-activedescendant', opt.id);
+        const f = ta.getBoundingClientRect();
+        const c = caret() ?? { left: f.left + 10, top: f.top + 8, bottom: f.top + 26 };
+        const m = menu.getBoundingClientRect();
+        const below = c.bottom + 4 + m.height <= innerHeight;
+        menu.style.left = `${Math.max(8, Math.min(innerWidth - m.width - 8, c.left - 8))}px`;
+        menu.style.top = `${below ? c.bottom + 4 : c.top - m.height - 4}px`;
+    };
+    const check = () => show(token() !== null);
+    const pick = () => {
+        const q = token();
+        if (q === null) {
+            return;
+        }
+        ta.setRangeText('@Claude ', ta.selectionStart - q.length - 1, ta.selectionStart, 'end');
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        ta.focus();
+    };
+    ta.addEventListener('input', () => (paint(), check()));
+    ta.addEventListener('scroll', () => (mirror.scrollTop = ta.scrollTop));
+    ta.addEventListener('click', check);
+    ta.addEventListener('keyup', (e) => e.key.startsWith('Arrow') && check());
+    ta.addEventListener('blur', () => show(false));
+
+    // ahead of the box's own keys: Enter and Tab take the suggestion instead of sending, Esc closes only the menu
+    field.addEventListener(
+        'keydown',
+        (e) => {
+            if (menu.hidden || e.isComposing || !['Enter', 'Tab', 'Escape'].includes(e.key)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.key === 'Escape') {
+                show(false);
+            } else {
+                pick();
+            }
+        },
+        true,
+    );
+    opt.addEventListener('mousedown', (e) => e.preventDefault());
+    opt.addEventListener('click', pick);
+    new ResizeObserver(() => (mirror.scrollTop = ta.scrollTop)).observe(ta);
+    paint();
+    return field;
+};
+
+// a comment's text: its leading "> " lines as a quote, and "@claude" as a chip where it reached Claude
+const commentBody = (c) => {
+    const lines = c.text.split('\n');
+    const q = lines.findIndex((l) => !l.startsWith('>'));
+    const quoted = lines
+        .slice(0, q < 0 ? lines.length : q)
+        .map((l) => l.replace(/^>\s?/, ''))
+        .join('\n');
+    const rest = q < 0 ? '' : lines.slice(q).join('\n');
+    return [
+        quoted && h('blockquote', { class: 'quote' }, quoted),
+        rest && h('p', { class: 'text' }, c.author === 'user' && !c.via ? withMentions(rest) : rest),
+    ];
 };
 
 const ago = (iso) => {
@@ -1611,7 +1743,9 @@ const viewer = async (id) => {
         const box = h('input', { type: 'checkbox', checked: S.send });
         const go = h('button', { type: 'button', class: 'btn primary' });
         const sync = () => {
-            go.replaceChildren(...(box.checked ? [icon('claude'), `${label} & send to Claude`] : [label]));
+            go.replaceChildren(
+                ...(box.checked || mentions(ta.value) ? [icon('claude'), `${label} & send to Claude`] : [label]),
+            );
             go.disabled = !ta.value.trim();
         };
         const run = async () => {
@@ -1619,7 +1753,7 @@ const viewer = async (id) => {
                 return;
             }
             go.disabled = true;
-            await submit(ta.value, box.checked);
+            await submit(ta.value, box.checked || mentions(ta.value));
             go.disabled = false;
         };
         ta.addEventListener('input', () => (onInput(ta.value), sync()));
@@ -1640,7 +1774,7 @@ const viewer = async (id) => {
         const el = h(
             'div',
             { class: 'editor' },
-            ta,
+            mentionField(ta),
             images?.strip,
             h(
                 'div',
@@ -1690,18 +1824,23 @@ const viewer = async (id) => {
             icon('claude'),
             'Send to Claude',
         );
+        // "@claude" in the text sends it whichever button is used, so only Send to Claude is offered
         const sync = () => {
             const off = !ta.value.trim();
+            const m = mentions(ta.value);
             plain.disabled = off;
+            plain.hidden = m;
             send.disabled = off;
+            send.className = `btn ${S.send || m ? 'primary' : 'ghost'}`;
         };
-        const run = async (toClaude) => {
+        const run = async (choice) => {
+            const toClaude = choice || mentions(ta.value);
             if (!ta.value.trim() || send.disabled) {
                 return;
             }
             plain.disabled = true;
             send.disabled = true;
-            setSend(toClaude);
+            setSend(choice);
             const { image, also, ...rest } = S.draft;
             const anchor = { ...rest, ...(also && { also: also.map(({ image: _, ...x }) => x) }) };
             const body = {
@@ -1751,7 +1890,7 @@ const viewer = async (id) => {
                 areaTag(S.draft),
             ),
             shots([S.draft.image, ...(S.draft.also ?? []).map((x) => x.image)]),
-            ta,
+            mentionField(ta),
             att.strip,
             h(
                 'div',
@@ -1837,6 +1976,23 @@ const viewer = async (id) => {
 
     const replyImages = (tid) => S.replyImages.get(tid) ?? S.replyImages.set(tid, []).get(tid);
 
+    // quotes a comment into the thread's reply box with "@Claude", keeping anything already typed there
+    const askAbout = (t, c) => {
+        const words = c.text
+            .split('\n')
+            .filter((l) => !l.startsWith('>'))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const said = words.length > QUOTE_MAX ? `${words.slice(0, QUOTE_MAX - 1)}…` : words;
+        const typed = S.replies.get(t.id) ?? '';
+        S.replies.set(t.id, `> ${said}\n${mentions(typed) ? typed : `@Claude ${typed}`}`);
+        renderPanel();
+        const ta = list.querySelector(`[data-key="r:${t.id}"]`);
+        ta?.focus();
+        ta?.setSelectionRange(ta.value.length, ta.value.length);
+    };
+
     const threadCard = (t, n) => {
         const base = `/api/a/${id}/comments/${t.id}`;
         const lastUser = t.comments.findLast((c) => c.author === 'user');
@@ -1875,8 +2031,20 @@ const viewer = async (id) => {
                         c.via === 'page' && h('span', { class: 'via' }, 'via the artifact'),
                         time(c.created_at),
                         c.to_claude_at && h('span', { class: 'sent' }, icon('claude'), 'Sent to Claude'),
+                        !t.resolved_at &&
+                            h(
+                                'button',
+                                {
+                                    type: 'button',
+                                    class: 'ask',
+                                    title: 'Quote this comment in a reply to @Claude',
+                                    onclick: () => askAbout(t, c),
+                                },
+                                icon('claude'),
+                                'Ask Claude',
+                            ),
                     ),
-                    h('p', { class: 'text' }, c.text),
+                    commentBody(c),
                     shots(
                         (c.images ?? []).map((_, k) => `/api/a/${id}/comments/${t.id}/attach/${c.id}/${k}`),
                         'Attached image; Claude gets it with the comment',
