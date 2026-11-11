@@ -21,6 +21,11 @@
         const IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,/;
         const SCAN_MAX = 4096;
         const ACCENT = '#c96442';
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+
+        // claude's cursor: its glide to a new target, and how long it rests on each when it works on several
+        const GLIDE_MS = 700;
+        const CYCLE_MS = 3000;
         // the daemon's DB_QUERY_MAX
         const ORDERED_LIMIT = 1000;
 
@@ -1019,6 +1024,10 @@
         let ui = null;
         let tick;
         const pinNodes = new Map();
+
+        // claude's cursor: the anchors it works on, the one it is on, where it was last drawn and where its glide began
+        const cl = { list: [], i: 0, at: null, from: null, t0: 0, cycle: 0, landed: false };
+        const still = matchMedia('(prefers-reduced-motion: reduce)');
         const cursor = guard(() => new CSSStyleSheet())();
         guard(() => cursor.replaceSync('*,*::before,*::after{cursor:crosshair!important}'))();
 
@@ -1039,7 +1048,17 @@
                 .pin{position:fixed;pointer-events:auto;cursor:pointer;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;
                     border-radius:11px 11px 11px 3px;background:${ACCENT};color:#fff;font:600 11px/22px -apple-system,BlinkMacSystemFont,sans-serif;
                     text-align:center;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);transform:translate(-4px,-100%)}
-                .pin:hover{filter:brightness(1.1)}`;
+                .pin:hover{filter:brightness(1.1)}
+                .claude{position:fixed;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .2s;will-change:transform}
+                .claude.on{opacity:1}
+                .claude svg{display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+                .claude span{position:absolute;left:13px;top:17px;padding:1px 5px;border-radius:4px;background:${ACCENT};color:#fff;
+                    font:600 11px/16px -apple-system,BlinkMacSystemFont,sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+                .claude i{position:absolute;left:-11px;top:-11px;width:24px;height:24px;box-sizing:border-box;border-radius:50%;
+                    border:2px solid ${ACCENT};opacity:0}
+                .claude.tap i{animation:tap .6s ease-out}
+                @keyframes tap{from{transform:scale(.3);opacity:.9}to{transform:scale(1.5);opacity:0}}
+                @media (prefers-reduced-motion:reduce){.claude{transition:none}.claude.tap i{animation:none}}`;
             const hover = document.createElement('div');
             hover.className = 'box hover';
             const focus = document.createElement('div');
@@ -1048,14 +1067,41 @@
             area.className = 'box area';
             const layer = document.createElement('div');
             const extra = document.createElement('div');
-            sr.append(style, hover, focus, area, extra, layer);
-            ui = { hover, focus, area, extra, layer };
+            const claude = document.createElement('div');
+            claude.className = 'claude';
+            const svg = document.createElementNS(SVG_NS, 'svg');
+            const arrow = document.createElementNS(SVG_NS, 'path');
+            for (const [k, v] of [
+                ['width', '16'],
+                ['height', '20'],
+                ['viewBox', '0 0 16 20'],
+            ]) {
+                svg.setAttribute(k, v);
+            }
+            for (const [k, v] of [
+                ['d', 'M1 1v16l4.4-4.2 3 6.4 2.6-1.2-3-6.3H14z'],
+                ['fill', ACCENT],
+                ['stroke', '#fff'],
+                ['stroke-width', '1.5'],
+                ['stroke-linejoin', 'round'],
+            ]) {
+                arrow.setAttribute(k, v);
+            }
+            svg.append(arrow);
+            claude.append(
+                document.createElement('i'),
+                svg,
+                Object.assign(document.createElement('span'), { textContent: 'Claude' }),
+            );
+            claude.addEventListener('animationend', () => claude.classList.remove('tap'));
+            sr.append(style, hover, focus, area, extra, layer, claude);
+            ui = { hover, focus, area, extra, layer, claude };
             root.append(host);
             tick = setInterval(guard(layout), 500);
         };
 
         const dropHost = () => {
-            if (!host || mode || pins.length || focusEl || draftAt || extraEls.length) {
+            if (!host || mode || pins.length || focusEl || draftAt || extraEls.length || cl.list.length) {
                 return;
             }
             clearInterval(tick);
@@ -1171,6 +1217,30 @@
                     pinNodes.delete(tid);
                 }
             }
+
+            // claude's cursor follows its target as the page scrolls or the camera moves, gliding only when the
+            // target changes, and taps it on arrival; it hides while the spot is off screen
+            const cp = cl.list[cl.i] && aim(cl.list[cl.i]);
+            if (!cp) {
+                ui.claude.classList.remove('on');
+                cl.at = null;
+                cl.from = null;
+            } else {
+                const k = cl.from && !still.matches ? Math.min(1, (performance.now() - cl.t0) / GLIDE_MS) : 1;
+                const e = k < 0.5 ? 4 * k ** 3 : 1 - (2 - 2 * k) ** 3 / 2;
+                cl.at = k < 1 ? { x: cl.from.x + (cp.x - cl.from.x) * e, y: cl.from.y + (cp.y - cl.from.y) * e } : cp;
+                ui.claude.style.transform = `translate(${cl.at.x - 1}px,${cl.at.y - 1}px)`;
+                ui.claude.classList.add('on');
+                if (k < 1) {
+                    schedule();
+                } else if (!cl.landed) {
+                    cl.from = null;
+                    cl.landed = true;
+                    ui.claude.classList.remove('tap');
+                    void ui.claude.offsetWidth;
+                    ui.claude.classList.add('tap');
+                }
+            }
             const d = atOf();
             const k = d && `${d.x},${d.y},${d.shown}`;
             if (d && k !== lastAt) {
@@ -1214,6 +1284,27 @@
             }
             const b = el.getBoundingClientRect();
             return { x: b.left + p.at.x * b.width, y: b.top + p.at.y * b.height };
+        };
+
+        // where claude's cursor points on an anchor: its pin's spot, else the middle of its element or region, kept in view
+        const aim = (p) => {
+            const doc = custom?.placed.get(p.tid);
+            const el = custom && !doc ? null : find(p.path);
+            const pt = doc ? { x: doc.x - scrollX, y: doc.y - scrollY } : el && pointOf(el, p);
+            if (pt) {
+                const hit = document.elementsFromPoint(pt.x, pt.y).find((e) => e !== host);
+                const off = pt.x < 0 || pt.y < 0 || pt.x > innerWidth || pt.y > innerHeight;
+                return off || (el && hit && !el.contains(hit) && !hit.contains(el)) ? null : pt;
+            }
+            const r = pt === undefined && el && (p.region ? regionRect(el, p.region) : el.getBoundingClientRect());
+            if (!r || (!r.width && !r.height) || r.bottom < 0 || r.top > innerHeight) {
+                return null;
+            }
+            return { x: r.left + r.width / 2, y: Math.max(24, Math.min(innerHeight - 24, r.top + r.height / 2)) };
+        };
+        const aimAt = (i, from) => {
+            Object.assign(cl, { i, from, t0: performance.now(), landed: false });
+            schedule();
         };
 
         let raf = 0;
@@ -2291,6 +2382,39 @@
                         : [];
                     if (pins.length) {
                         ensureHost();
+                    }
+                    schedule();
+                    dropHost();
+                } else if (m.type === 'claude') {
+                    const was = cl.list[cl.i]?.tid;
+                    cl.list = Array.isArray(m.targets)
+                        ? m.targets
+                              .filter((p) => p && typeof p.path === 'string' && typeof p.tid === 'string')
+                              .slice(0, 20)
+                              .map((p) => ({ ...p, region: validRegion(p.region), at: validAt(p.at) }))
+                        : [];
+                    clearInterval(cl.cycle);
+                    if (cl.list.length > 1) {
+                        cl.cycle = setInterval(
+                            guard(() => aimAt((cl.i + 1) % cl.list.length, cl.at)),
+                            CYCLE_MS,
+                        );
+                    }
+
+                    // a new target: glide there from where the cursor is, or in from the top edge when it just arrived
+                    const i = Math.max(
+                        0,
+                        cl.list.findIndex((p) => p.tid === was),
+                    );
+                    if (cl.list[i] && cl.list[i].tid !== was) {
+                        aimAt(i, cl.at ?? (m.enter === true ? { x: innerWidth - 24, y: -24 } : null));
+                    } else {
+                        cl.i = i;
+                    }
+                    if (cl.list.length) {
+                        ensureHost();
+                    } else {
+                        cl.at = null;
                     }
                     schedule();
                     dropHost();
