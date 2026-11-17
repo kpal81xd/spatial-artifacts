@@ -264,16 +264,16 @@ describe('new-scene', () => {
         );
         assert.doesNotMatch(html, /const parseScene =/);
         assert.ok(
-            html.includes('"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs"'),
+            html.includes('"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.6/build/playcanvas.min.mjs"'),
         );
         assert.ok(
             html.includes(
-                '"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/build/playcanvas.min.mjs":"sha384-taKFZkoi0MnbpX25w5jlEe4Kv4+DNMsEybkkBegCSD3k7K4/tqfoxBcKVK9pgi8f"',
+                '"https://cdn.jsdelivr.net/npm/playcanvas@2.22.6/build/playcanvas.min.mjs":"sha384-ufCf1frj9pq/78Eo1OAXKM95iWRdhnx4K8K+j7I0YNZmNTqVKMQ44L/FBAMh8Si+"',
             ),
         );
         assert.ok(
             html.includes(
-                '"https://cdn.jsdelivr.net/npm/playcanvas@2.22.5/scripts/esm/camera-controls.mjs":"sha384-mwdf62dEa/NFlVc9OvBgOrV/mObR9yRmvDTmB41Cd8YcU+OBC/p2L0DlL4OlkrjK"',
+                '"https://cdn.jsdelivr.net/npm/playcanvas@2.22.6/scripts/esm/camera-controls.mjs":"sha384-mwdf62dEa/NFlVc9OvBgOrV/mObR9yRmvDTmB41Cd8YcU+OBC/p2L0DlL4OlkrjK"',
             ),
         );
         assert.match(html, /<canvas data-scene="study" data-entity="" data-point=""/);
