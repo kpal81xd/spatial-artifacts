@@ -53,7 +53,7 @@ interface DocRef {
     onSnapshot(cb: (s: Snapshot) => void): () => void; // called now and on every change; returns unsubscribe
 }
 interface Query {
-    doc(id: string): DocRef;
+    doc(id?: string): DocRef;                        // no id mints a fresh one, so a retried create makes at most one doc
     where(field: string, op: '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not-in' | 'array-contains', value: unknown): Query;
     orderBy(field: string, direction?: 'asc' | 'desc'): Query;
     limit(n: number): Query;                         // ≤ 1000
@@ -65,12 +65,12 @@ interface Snapshot { id: string; exists: boolean; version?: number; data(): any 
 interface User {
     me(): Promise<{ id: string; name: string }>;     // id is "u_" + 22 chars
     id(): Promise<string>;
-    isOwner(): boolean; canEdit(): boolean; can(name: string): boolean; // the one local person owns the artifact: always true
+    isOwner(): Promise<boolean>; canEdit(): Promise<boolean>; can(name: string): Promise<boolean | null>; // the one local person owns the artifact: always true
     profiles(ids: string[]): Promise<Record<string, { id: string; name: string; guest: boolean }>>; // name "" when unknown
 }
 
 interface Assets {
-    upload(file: Blob | File, name?: string): Promise<{ id: string; url: string; name: string; contentType: string; size: number }>;
+    upload(blob: Blob | File, options?: { type?: string }): Promise<{ id: string; url: string; name: string; contentType: string; sizeBytes: number }>; // type is required when blob.type is empty
     list(): Promise<{ id: string; url: string; name: string; contentType: string; size: number }[]>;
     url(id: string): string;                         // "/_blob/<id>", usable in <img src>, fetch, CSS url()
 }
