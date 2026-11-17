@@ -28,6 +28,8 @@
         const CYCLE_MS = 3000;
         // the daemon's DB_QUERY_MAX
         const ORDERED_LIMIT = 1000;
+        // the alphabet of ids collection().doc() mints
+        const ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
         const script = document.currentScript;
         const ds = (script && script.dataset) || {};
@@ -406,7 +408,11 @@
             return {
                 id: collection.slice(collection.lastIndexOf('/') + 1),
                 path: collection,
-                doc: (id) => docRef(`${collection}/${id}`),
+                // no id mints one, so a retried create still makes at most one document
+                doc: (id) =>
+                    docRef(
+                        `${collection}/${id ?? Array.from(crypto.getRandomValues(new Uint8Array(20)), (b) => ID_CHARS[b % ID_CHARS.length]).join('')}`,
+                    ),
                 where: (field, op, value) =>
                     queryRef(collection, { ...q, where: [...(q.where || []), [field, op, value]] }),
                 orderBy: (field, direction = 'asc') => queryRef(collection, { ...q, order_by: { field, direction } }),
@@ -450,9 +456,9 @@
         const user = Object.freeze({
             me,
             id: () => me().then((u) => u.id),
-            isOwner: () => true,
-            canEdit: () => true,
-            can: () => true,
+            isOwner: () => Promise.resolve(true),
+            canEdit: () => Promise.resolve(true),
+            can: () => Promise.resolve(true),
             profiles: (ids) =>
                 me().then((u) =>
                     Object.fromEntries(
@@ -465,17 +471,18 @@
         });
 
         const assets = Object.freeze({
-            upload: (file, name) =>
+            // upload(blob, {type}) as the hosted runtime takes it; upload(file, name) as earlier pages call it
+            upload: (file, opts) =>
                 traced(
                     'assets.upload',
                     call('/_frame/api/assets', {
                         method: 'POST',
                         headers: {
-                            'content-type': (file && file.type) || 'application/octet-stream',
-                            'x-name': encodeURIComponent(name || (file && file.name) || 'upload'),
+                            'content-type': opts?.type || file?.type || 'application/octet-stream',
+                            'x-name': encodeURIComponent((typeof opts === 'string' && opts) || file?.name || 'upload'),
                         },
                         body: file,
-                    }),
+                    }).then((a) => ({ ...a, sizeBytes: a.size })),
                 ),
             list: () => traced('assets.list', call('/_frame/api/assets')),
             url: (id) => `/_blob/${encodeURIComponent(id)}`,
