@@ -1,7 +1,6 @@
 // viewer shell: the gallery at /code/artifacts and one artifact at /code/artifact/<id>.
 // the artifact runs in a sandboxed frame on its own origin; everything it sends is untrusted.
 const THEME_KEY = 'spatial-artifacts.theme';
-const SEND_KEY = 'spatial-artifacts.send';
 // the new-comment box: px from its anchor point and the page edges
 const DRAFT_GAP = 8;
 // a drawn area's capture, as a data: url; the daemon caps the decoded bytes at 1 MB
@@ -32,11 +31,11 @@ const QUOTE_MAX = 160;
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 // the header's presence circle: whether a Claude session linked to this artifact is there to hear comments
 const PRESENCE = {
-    watching: ['Claude is watching', 'Comments you send to Claude reach its session right away.'],
-    open: ['Claude session open, not watching', 'Comments you send to Claude reach it with your next message there.'],
+    watching: ['Claude is watching', 'Comments that mention @Claude reach its session right away.'],
+    open: ['Claude session open, not watching', 'Comments that mention @Claude reach it with your next message there.'],
     none: [
         'No Claude session',
-        'Paste this page’s URL into a Claude session to connect it; comments you send to Claude wait until then.',
+        'Paste this page’s URL into a Claude session to connect it; comments that mention @Claude wait until then.',
     ],
 };
 const SANDBOX =
@@ -859,7 +858,6 @@ const viewer = async (id) => {
         active: null,
         confirm: null,
         showResolved: false,
-        send: localStorage.getItem(SEND_KEY) !== '0',
         gone: false,
         presence: 'none',
         claudeOn: new Set(),
@@ -1587,11 +1585,6 @@ const viewer = async (id) => {
         return r;
     };
 
-    const setSend = (v) => {
-        S.send = v;
-        localStorage.setItem(SEND_KEY, v ? '1' : '0');
-    };
-
     // a drawn area is tagged, with what it covers in the tag's tooltip
     const areaTag = (a) => [
         a?.region &&
@@ -1765,23 +1758,17 @@ const viewer = async (id) => {
         return bits;
     };
 
-    // a textarea with a send-to-claude checkbox; keeps its text across re-renders
+    // a reply box; "@claude" in it brings Claude in. keeps its text across re-renders
     const editor = ({ key, placeholder, value, onInput, submit, cancel, label, images }) => {
         const ta = h('textarea', { rows: 3, placeholder, 'data-key': key, value });
-        const box = h('input', { type: 'checkbox', checked: S.send });
-        const go = h('button', { type: 'button', class: 'btn primary' });
-        const sync = () => {
-            go.replaceChildren(
-                ...(box.checked || mentions(ta.value) ? [icon('claude'), `${label} & send to Claude`] : [label]),
-            );
-            go.disabled = !ta.value.trim();
-        };
+        const go = h('button', { type: 'button', class: 'btn primary' }, label);
+        const sync = () => (go.disabled = !ta.value.trim());
         const run = async () => {
             if (!ta.value.trim() || go.disabled) {
                 return;
             }
             go.disabled = true;
-            await submit(ta.value, box.checked || mentions(ta.value));
+            await submit(ta.value);
             go.disabled = false;
         };
         ta.addEventListener('input', () => (onInput(ta.value), sync()));
@@ -1796,7 +1783,6 @@ const viewer = async (id) => {
                 cancel();
             }
         });
-        box.addEventListener('change', () => (setSend(box.checked), sync()));
         go.addEventListener('click', run);
         sync();
         const el = h(
@@ -1808,7 +1794,6 @@ const viewer = async (id) => {
                 'div',
                 { class: 'editor-row' },
                 images?.button,
-                h('label', { class: 'check' }, box, 'Send to Claude'),
                 h('div', { class: 'spacer' }),
                 h('button', { type: 'button', class: 'btn ghost', onclick: cancel }, 'Cancel'),
                 go,
@@ -1832,7 +1817,7 @@ const viewer = async (id) => {
             h('p', { class: 'hint' }, 'Writing a comment in the page…'),
         );
 
-    // Enter repeats the last choice between Comment and Send to Claude; Shift+Enter is a new line; the corner grip resizes it
+    // Enter comments, and "@claude" in it brings Claude in; Shift+Enter is a new line; the corner grip resizes it
     const renderDraft = () => {
         post({ type: 'draft', open: !!S.draft, typed: !!S.draftText.trim() });
         document.body.classList.toggle('drafting', !!S.draft);
@@ -1841,46 +1826,31 @@ const viewer = async (id) => {
         }
         const ta = h('textarea', {
             rows: 3,
-            placeholder: 'Leave a comment…',
+            placeholder: 'Comment or mention @Claude…',
             'aria-label': 'Comment',
             value: S.draftText,
         });
-        const plain = h('button', { type: 'button', class: `btn ${S.send ? 'ghost' : 'primary'}` }, 'Comment');
-        const send = h(
-            'button',
-            { type: 'button', class: `btn ${S.send ? 'primary' : 'ghost'}` },
-            icon('claude'),
-            'Send to Claude',
-        );
-        // "@claude" in the text sends it whichever button is used, so only Send to Claude is offered
-        const sync = () => {
-            const off = !ta.value.trim();
-            const m = mentions(ta.value);
-            plain.disabled = off;
-            plain.hidden = m;
-            send.disabled = off;
-            send.className = `btn ${S.send || m ? 'primary' : 'ghost'}`;
-        };
-        const run = async (choice) => {
-            const toClaude = choice || mentions(ta.value);
-            if (!ta.value.trim() || send.disabled) {
+        const go = h('button', { type: 'button', class: 'btn primary' }, 'Comment');
+        const sync = () => (go.disabled = !ta.value.trim());
+        const run = async () => {
+            if (!ta.value.trim() || go.disabled) {
                 return;
             }
-            plain.disabled = true;
-            send.disabled = true;
-            setSend(choice);
+            go.disabled = true;
             const { image, also, ...rest } = S.draft;
             const anchor = { ...rest, ...(also && { also: also.map(({ image: _, ...x }) => x) }) };
             const body = {
                 text: ta.value,
                 anchor,
                 ver: shown(),
-                toClaude,
                 image,
                 also_images: also?.map((x) => x.image ?? null),
                 images: S.draftImages,
             };
-            const t = await act(api(`/api/a/${id}/comments`, 'POST', body), toClaude ? 'Sent to Claude' : undefined);
+            const t = await act(
+                api(`/api/a/${id}/comments`, 'POST', body),
+                mentions(ta.value) ? 'Sent to Claude' : undefined,
+            );
             if (!t) {
                 return sync();
             }
@@ -1898,7 +1868,7 @@ const viewer = async (id) => {
         ta.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
-                run(S.send);
+                run();
             }
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -1906,8 +1876,7 @@ const viewer = async (id) => {
                 closeDraft();
             }
         });
-        plain.addEventListener('click', () => run(false));
-        send.addEventListener('click', () => run(true));
+        go.addEventListener('click', run);
         const att = attacher(S.draftImages, renderDraft);
         att.wire(ta, ta);
         pop.replaceChildren(
@@ -1926,8 +1895,7 @@ const viewer = async (id) => {
                 att.button,
                 h('button', { type: 'button', class: 'btn ghost', onclick: closeDraft }, 'Cancel'),
                 h('div', { class: 'spacer' }),
-                plain,
-                send,
+                go,
             ),
         );
         pop.hidden = false;
@@ -2023,8 +1991,6 @@ const viewer = async (id) => {
 
     const threadCard = (t, n) => {
         const base = `/api/a/${id}/comments/${t.id}`;
-        const lastUser = t.comments.findLast((c) => c.author === 'user');
-        const canSend = !t.resolved_at && lastUser && !lastUser.to_claude_at;
         const reply = S.replies.get(t.id);
         const head = h(
             'div',
@@ -2121,17 +2087,6 @@ const viewer = async (id) => {
                               icon('reply'),
                               'Reply',
                           ),
-                      canSend &&
-                          h(
-                              'button',
-                              {
-                                  type: 'button',
-                                  class: 'act claude',
-                                  onclick: () => act(api(`${base}/send`, 'POST'), 'Sent to Claude'),
-                              },
-                              icon('claude'),
-                              'Send to Claude',
-                          ),
                       h(
                           'button',
                           {
@@ -2161,16 +2116,16 @@ const viewer = async (id) => {
             editor({
                 key: `r:${t.id}`,
                 label: 'Reply',
-                placeholder: 'Reply…',
+                placeholder: 'Reply or mention @Claude…',
                 value: reply,
                 onInput: (v) => S.replies.set(t.id, v),
                 cancel: () => (S.replies.delete(t.id), S.replyImages.delete(t.id), renderPanel()),
                 images: attacher(replyImages(t.id), renderPanel),
-                submit: async (text, toClaude) => {
+                submit: async (text) => {
                     const images = replyImages(t.id);
                     const r = await act(
-                        api(base, 'POST', { text, toClaude, images }),
-                        toClaude ? 'Sent to Claude' : undefined,
+                        api(base, 'POST', { text, images }),
+                        mentions(text) ? 'Sent to Claude' : undefined,
                     );
                     if (r) {
                         S.replies.delete(t.id);

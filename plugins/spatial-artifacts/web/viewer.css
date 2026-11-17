@@ -1321,15 +1321,6 @@ kbd {
     color: var(--fg);
 }
 
-.act.claude {
-    color: var(--accent);
-}
-
-.act.claude:hover {
-    background: var(--accent-soft);
-    color: var(--accent);
-}
-
 .act.danger:hover {
     background: var(--danger-soft);
     color: var(--danger);
@@ -1531,23 +1522,6 @@ kbd {
     border-color: var(--focus);
     outline: 2px dashed var(--focus);
     outline-offset: 2px;
-}
-
-.check {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--muted);
-    font-size: var(--text-meta);
-    cursor: pointer;
-    user-select: none;
-}
-
-.check input {
-    width: 14px;
-    height: 14px;
-    margin: 0;
-    accent-color: var(--accent);
 }
 
 .num.new {

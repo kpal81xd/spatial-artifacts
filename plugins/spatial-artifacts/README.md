@@ -24,8 +24,8 @@ skills/                           spatial-design, spatial-diagramming, spatial-c
 
 ## Comments
 
-**Send to Claude** (or `@claude` in a comment) hands the thread to Claude, which replies and resolves it with
-`SpatialArtifactComments`. The thread shows **Queued**, then **Working on it…**, then the reply.
+Mentioning `@claude` in a comment or reply hands the thread to Claude, like adding a collaborator; **Ask Claude** on a
+comment quotes it into a reply that mentions Claude. Claude replies and resolves it with `SpatialArtifactComments`. The thread shows **Queued**, then **Working on it…**, then the reply.
 
 A comment or reply can carry up to 4 reference images: paste them into its box, drop them on it, or pick them with its
 image button. They are scaled to at most 1568 px, and Claude sees them when it reads the thread.
